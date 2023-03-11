@@ -22,6 +22,9 @@ import (
 	"sync"
 
 	"github.com/containerd/containerd/remotes/docker"
+	"github.com/opencontainers/go-digest"
+	"github.com/opencontainers/image-spec/identity"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -42,6 +45,7 @@ type BuilderOptions struct {
 
 type overlaybdBuilder struct {
 	layers int
+	config v1.Image
 	engine builderEngine
 }
 
@@ -72,6 +76,7 @@ func NewOverlayBDBuilder(ctx context.Context, opt BuilderOptions) (Builder, erro
 	return &overlaybdBuilder{
 		layers: len(engineBase.manifest.Layers),
 		engine: engine,
+		config: engineBase.config,
 	}, nil
 }
 
@@ -99,9 +104,20 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 		}
 	}()
 
+	var chain []digest.Digest
+	srcDiffIDs := b.config.RootFS.DiffIDs
+
 	for i := 0; i < b.layers; i++ {
 		downloaded[i] = make(chan error)
 		converted[i] = make(chan error)
+
+		chain = append(chain, srcDiffIDs[i])
+		chainID := identity.ChainID(chain).String()
+
+		// check cache goroutine
+		go func(idx int, chainId string) {
+
+		}(i, chainID)
 
 		// download goroutine
 		go func(idx int) {
