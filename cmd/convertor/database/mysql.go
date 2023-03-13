@@ -1,19 +1,29 @@
 package database
 
 import (
+	"context"
 	"database/sql"
+
+	"github.com/containerd/containerd/log"
+	"github.com/pkg/errors"
 
 	"github.com/opencontainers/go-digest"
 )
 
-type mysql struct {
+type sqldb struct {
 	db *sql.DB
 }
 
-func (m *mysql) GetEntryForRepo(host string, repository string, chainID string) *Entry {
+func NewSqlDB(db *sql.DB) ConversionDatabase {
+	return &sqldb{
+		db: db,
+	}
+}
+
+func (m *sqldb) GetEntryForRepo(ctx context.Context, host string, repository string, chainID string) *Entry {
 	var entry Entry
 
-	row := m.db.QueryRow("select host, repo, chain_id, data_digest, data_size from overlaybd_layers where host=? and repository=? and chain_id=?", host, repository, chainID)
+	row := m.db.QueryRowContext(ctx, "select host, repo, chain_id, data_digest, data_size from overlaybd_layers where host=? and repository=? and chain_id=?", host, repository, chainID)
 	if err := row.Scan(&entry.Host, &entry.Repository, &entry.ChainID, &entry.ConvertedDigest, &entry.DataSize); err == nil {
 		return nil
 	}
@@ -21,25 +31,38 @@ func (m *mysql) GetEntryForRepo(host string, repository string, chainID string) 
 	return &entry
 }
 
-func (m *mysql) GetCrossRepoEntries(host string, chainID string) *Entry {
+func (m *sqldb) GetCrossRepoEntries(ctx context.Context, host string, chainID string) []*Entry {
 
-	rows, err := m.db.Query("select host, repository, chain_id, data_digest, data_size from overlaybd_layers where host=? and chain_id=?", host, chainID)
+	rows, err := m.db.QueryContext(ctx, "select host, repository, chain_id, data_digest, data_size from overlaybd_layers where host=? and chain_id=?", host, chainID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil
 		}
-		// log.G(ctx).Infof("query error %v", err)
+		log.G(ctx).Infof("query error %v", err)
 		return nil
 	}
+	var entries []*Entry
+	for rows.Next() {
+		var entry Entry
+		err = rows.Scan(&entry.Host, &entry.Repository, &entry.ChainID, &entry.ConvertedDigest, &entry.DataSize)
+		if err != nil {
+			continue
+		}
+		entries = append(entries, &entry)
+	}
 
-	return nil
+	return entries
 }
 
-func (m *mysql) CreateEntry(host string, repository string, convertedDigest digest.Digest, chainID string, size int64) error {
-	_, err := m.db.Exec("insert into overlaybd_layers(host, repository, chain_id, data_digest, data_size) values(?, ?, ?, ?, ?)", host, repository, chainID, convertedDigest, size)
+func (m *sqldb) CreateEntry(ctx context.Context, host string, repository string, convertedDigest digest.Digest, chainID string, size int64) error {
+	_, err := m.db.ExecContext(ctx, "insert into overlaybd_layers(host, repository, chain_id, data_digest, data_size) values(?, ?, ?, ?, ?)", host, repository, chainID, convertedDigest, size)
 	return err
 }
 
-func (m *mysql) DeleteEntry(host string, repository string, chainID string) error {
+func (m *sqldb) DeleteEntry(ctx context.Context, host string, repository string, chainID string) error {
+	_, err := m.db.Exec("delete from overlaybd_layers where host=? and repository=? and chain_id=?", host, repository, chainID)
+	if err != nil {
+		return errors.Wrapf(err, "failed to remove invalid record in db")
+	}
 	return nil
 }

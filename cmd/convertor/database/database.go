@@ -1,12 +1,16 @@
 package database
 
-import "github.com/opencontainers/go-digest"
+import (
+	"context"
+
+	"github.com/opencontainers/go-digest"
+)
 
 type ConversionDatabase interface {
-	GetEntryForRepo(host string, repository string, chainID string) *Entry
-	GetCrossRepoEntry(host string, chainID string) *Entry
-	CreateEntry(host string, repository string, convertedDigest digest.Digest, chainID string) error
-	DeleteEntry(host string, repository string, chainID string) error
+	GetEntryForRepo(ctx context.Context, host string, repository string, chainID string) *Entry
+	GetCrossRepoEntries(ctx context.Context, host string, chainID string) []*Entry
+	CreateEntry(ctx context.Context, host string, repository string, convertedDigest digest.Digest, chainID string, size int64) error
+	DeleteEntry(ctx context.Context, host string, repository string, chainID string) error
 }
 
 type Entry struct {
