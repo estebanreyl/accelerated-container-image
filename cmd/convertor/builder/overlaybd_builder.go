@@ -29,6 +29,8 @@ import (
 
 	"github.com/containerd/accelerated-container-image/pkg/label"
 	"github.com/containerd/accelerated-container-image/pkg/snapshot"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/log"
 	"github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
@@ -226,6 +228,62 @@ func (e *overlaybdBuilderEngine) commit(ctx context.Context, dir string) error {
 		return errors.Wrapf(err, "failed to overlaybd-commit: %s", out)
 	}
 	return nil
+}
+
+func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, chainID string) (*specs.Descriptor, error) {
+
+	// Try to find in the same repo, check existence on registry
+	entry := e.db.GetEntryForRepo(ctx, e.host, e.repository, chainID)
+	if entry != nil {
+		desc := specs.Descriptor{
+			MediaType: e.mediaTypeImageLayer(),
+			Digest:    digest.Digest(entry.ConvertedDigest),
+			Size:      entry.DataSize,
+		}
+		rc, err := e.fetcher.Fetch(ctx, desc)
+
+		if err == nil {
+			rc.Close()
+			log.G(ctx).Infof("found remote layer for chainID %s", chainID)
+			return &desc, nil
+		}
+		if errdefs.IsNotFound(err) {
+			// invalid record in db, which is not found in registry, remove it
+			err := e.db.DeleteEntry(ctx, e.host, e.repository, chainID)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// found record in other repo, mount it to target repo
+	entries := e.db.GetCrossRepoEntries(ctx, e.host, chainID)
+	for _, entry := range entries {
+		// try mount
+		desc := specs.Descriptor{
+			MediaType: e.mediaTypeImageLayer(),
+			Digest:    entry.ConvertedDigest,
+			Size:      entry.DataSize,
+			Annotations: map[string]string{
+				label.OverlayBDBlobDigest: entry.ConvertedDigest.String(),
+				label.OverlayBDBlobSize:   fmt.Sprintf("%d", entry.DataSize),
+			},
+		}
+
+		_, err := e.pusher.Push(ctx, desc)
+		if errdefs.IsAlreadyExists(err) {
+			desc.Annotations = nil
+			err := e.db.CreateEntry(ctx, e.host, e.repository, entry.ConvertedDigest, chainID, entry.DataSize)
+			if err != nil {
+				continue
+			}
+			log.G(ctx).Infof("mount from %s success", entry.Repository)
+			log.G(ctx).Infof("found remote layer for chainID %s", chainID)
+			return &desc, nil
+		}
+	}
+	log.G(ctx).Infof("layer not found in remote")
+	return nil, errdefs.ErrNotFound
 }
 
 type writeCountWrapper struct {

@@ -27,6 +27,7 @@ import (
 	"github.com/containerd/accelerated-container-image/pkg/label"
 	"github.com/containerd/accelerated-container-image/pkg/snapshot"
 	"github.com/containerd/containerd/archive/compression"
+	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/images"
 	"github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
@@ -184,6 +185,12 @@ func (e *fastOCIBuilderEngine) UploadImage(ctx context.Context) error {
 	e.manifest.Layers = append([]specs.Descriptor{baseDesc}, e.manifest.Layers...)
 	e.config.RootFS.DiffIDs = append([]digest.Digest{baseDesc.Digest}, e.config.RootFS.DiffIDs...)
 	return e.uploadManifestAndConfig(ctx)
+}
+
+func (e *fastOCIBuilderEngine) CheckForConvertedLayer(ctx context.Context, chainID string) (*specs.Descriptor, error) {
+	// For the purposes of fastOCI since layers are not meant to be changed there is no need to
+	// do any caching of the converted layers.
+	return nil, errdefs.ErrNotFound
 }
 
 func (e *fastOCIBuilderEngine) Cleanup() {

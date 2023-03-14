@@ -82,6 +82,7 @@ func NewOverlayBDBuilder(ctx context.Context, opt BuilderOptions) (Builder, erro
 
 func (b *overlaybdBuilder) Build(ctx context.Context) error {
 	defer b.engine.Cleanup()
+	alreadyConverted := make([]chan *v1.Descriptor, b.layers)
 	downloaded := make([]chan error, b.layers)
 	converted := make([]chan error, b.layers)
 	var uploaded sync.WaitGroup
@@ -114,14 +115,31 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 		chain = append(chain, srcDiffIDs[i])
 		chainID := identity.ChainID(chain).String()
 
-		// check cache goroutine
+		// Check cache goroutine
+		// Only needs to apply to overlaybd
+		// conversion really
 		go func(idx int, chainId string) {
+			// Try to find chainId -> converted digest conversion if available
 
 		}(i, chainID)
 
 		// download goroutine
 		go func(idx int) {
+			var cachedLayer *v1.Descriptor
+			select {
+			case <-ctx.Done():
+			case cachedLayer = <-alreadyConverted[idx]:
+			}
+
 			defer close(downloaded[idx])
+			if cachedLayer != nil {
+				// download the converted layer
+				// maybe update the config and see what happens?
+				// not sure how to  use the downloaded layer
+
+				return
+			}
+
 			if err := b.engine.DownloadLayer(ctx, idx); err != nil {
 				sendToChannel(ctx, errCh, errors.Wrapf(err, "failed to download layer %d", idx))
 				return
