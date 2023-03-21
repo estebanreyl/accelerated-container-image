@@ -57,6 +57,7 @@ func NewOverlayBDBuilderEngine(base *builderEngineBase) builderEngine {
 	config.Lowers = append(config.Lowers, snapshot.OverlayBDBSConfigLower{
 		File: overlaybdBaseLayer,
 	})
+
 	return &overlaybdBuilderEngine{
 		builderEngineBase: base,
 		overlaybdConfig:   config,
@@ -72,21 +73,35 @@ func (e *overlaybdBuilderEngine) DownloadLayer(ctx context.Context, idx int) err
 
 func (e *overlaybdBuilderEngine) BuildLayer(ctx context.Context, idx int) error {
 	layerDir := e.getLayerDir(idx)
-	if err := e.create(ctx, layerDir); err != nil {
-		return err
+
+	isCached := false
+	// Check if we used a cached layer, this allows avoiding create --> apply --> commit
+	if _, err := os.Stat("%s/overlaybd-commit"); err == nil {
+		isCached = true
+	}
+	if !isCached {
+		if err := e.create(ctx, layerDir); err != nil {
+			return err
+		}
 	}
 	e.overlaybdConfig.Upper = snapshot.OverlayBDBSConfigUpper{
 		Data:  path.Join(layerDir, "writable_data"),
 		Index: path.Join(layerDir, "writable_index"),
 	}
+
+	// Not sure that this still needs to be written?
 	if err := writeConfig(layerDir, e.overlaybdConfig); err != nil {
 		return err
 	}
-	if err := e.apply(ctx, layerDir); err != nil {
-		return err
-	}
-	if err := e.commit(ctx, layerDir); err != nil {
-		return err
+
+	if !isCached {
+
+		if err := e.apply(ctx, layerDir); err != nil {
+			return err
+		}
+		if err := e.commit(ctx, layerDir); err != nil {
+			return err
+		}
 	}
 	e.overlaybdConfig.Lowers = append(e.overlaybdConfig.Lowers, snapshot.OverlayBDBSConfigLower{
 		File: path.Join(layerDir, commitFile),
@@ -232,6 +247,11 @@ func (e *overlaybdBuilderEngine) commit(ctx context.Context, dir string) error {
 
 func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, chainID string) (*specs.Descriptor, error) {
 
+	// If the database is not set, no caching happens
+	if e.db == nil {
+		return nil, errdefs.ErrNotFound
+	}
+
 	// Try to find in the same repo, check existence on registry
 	entry := e.db.GetEntryForRepo(ctx, e.host, e.repository, chainID)
 	if entry != nil {
@@ -284,6 +304,11 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, cha
 	}
 	log.G(ctx).Infof("layer not found in remote")
 	return nil, errdefs.ErrNotFound
+}
+
+func (e *overlaybdBuilderEngine) DownloadCachedLayer(ctx context.Context, idx int, desc *specs.Descriptor) error {
+	targetFile := path.Join(e.getLayerDir(idx), "overlaybd-commit")
+	return downloadLayer(ctx, e.fetcher, targetFile, *desc, true)
 }
 
 type writeCountWrapper struct {

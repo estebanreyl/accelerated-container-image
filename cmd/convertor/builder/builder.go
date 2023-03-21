@@ -21,6 +21,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/containerd/accelerated-container-image/cmd/convertor/database"
 	"github.com/containerd/containerd/remotes/docker"
 	"github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/identity"
@@ -40,6 +41,7 @@ type BuilderOptions struct {
 	PlainHTTP bool
 	WorkDir   string
 	OCI       bool
+	DB        database.ConversionDatabase
 	Engine    BuilderEngineType
 }
 
@@ -66,6 +68,7 @@ func NewOverlayBDBuilder(ctx context.Context, opt BuilderOptions) (Builder, erro
 	}
 	engineBase.workDir = opt.WorkDir
 	engineBase.oci = opt.OCI
+	engineBase.db = opt.DB
 	var engine builderEngine
 	switch opt.Engine {
 	case BuilderEngineTypeOverlayBD:
@@ -120,7 +123,12 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 		// conversion really
 		go func(idx int, chainId string) {
 			// Try to find chainId -> converted digest conversion if available
-
+			defer close(alreadyConverted[idx])
+			desc, err := b.engine.CheckForConvertedLayer(ctx, chainId)
+			if err != nil {
+				return
+			}
+			alreadyConverted[idx] <- desc
 		}(i, chainID)
 
 		// download goroutine
@@ -134,10 +142,14 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 			defer close(downloaded[idx])
 			if cachedLayer != nil {
 				// download the converted layer
-				// maybe update the config and see what happens?
-				// not sure how to  use the downloaded layer
-
-				return
+				err := b.engine.DownloadCachedLayer(ctx, idx, cachedLayer)
+				if err == nil {
+					logrus.Infof("downloaded cached layer %d", idx)
+					sendToChannel(ctx, downloaded[idx], nil)
+					return
+				}
+				logrus.Infof("Failed to download cached layer %d falling back to conversion", idx)
+				// Fallback to local conversion (May need to verify error in case a rollback is needed)
 			}
 
 			if err := b.engine.DownloadLayer(ctx, idx); err != nil {

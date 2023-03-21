@@ -51,6 +51,8 @@ type builderEngine interface {
 
 	CheckForConvertedLayer(ctx context.Context, chainID string) (*specs.Descriptor, error)
 
+	DownloadCachedLayer(ctx context.Context, idx int, desc *specs.Descriptor) error
+
 	// CheckForAlreadyConvertedManifest
 
 	// cleanup remove workdir

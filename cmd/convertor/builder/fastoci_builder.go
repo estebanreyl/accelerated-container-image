@@ -193,6 +193,10 @@ func (e *fastOCIBuilderEngine) CheckForConvertedLayer(ctx context.Context, chain
 	return nil, errdefs.ErrNotFound
 }
 
+func (e *fastOCIBuilderEngine) DownloadCachedLayer(ctx context.Context, idx int, desc *specs.Descriptor) error {
+	return errdefs.ErrNotImplemented
+}
+
 func (e *fastOCIBuilderEngine) Cleanup() {
 	os.RemoveAll(e.workDir)
 }

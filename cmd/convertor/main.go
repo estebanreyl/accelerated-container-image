@@ -18,10 +18,12 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"os/signal"
 
 	"github.com/containerd/accelerated-container-image/cmd/convertor/builder"
+	"github.com/containerd/accelerated-container-image/cmd/convertor/database"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -36,6 +38,8 @@ var (
 	oci       bool
 	fastoci   string
 	overlaybd string
+	dbstr     string
+	dbType    string
 
 	rootCmd = &cobra.Command{
 		Use:   "convertor",
@@ -62,6 +66,22 @@ var (
 				logrus.Info("building overlaybd ...")
 				opt.Engine = builder.BuilderEngineTypeOverlayBD
 				opt.TargetRef = repo + ":" + overlaybd
+
+				// Both empty = good
+				// One full, other empty
+				switch dbType {
+				case "mysql":
+					if dbstr == "" {
+						logrus.Warnf("No dbstr was provided, falling back to no db")
+					}
+					db, err := sql.Open("mysql", dbstr)
+					if err != nil {
+						logrus.Errorf("failed to open the provided mysql db: %v", err)
+						os.Exit(1)
+					}
+					opt.DB = database.NewSqlDB(db)
+				}
+
 				builder, err := builder.NewOverlayBDBuilder(ctx, opt)
 				if err != nil {
 					logrus.Errorf("failed to create overlaybd builder: %v", err)
@@ -103,6 +123,8 @@ func init() {
 	rootCmd.Flags().BoolVarP(&oci, "oci", "", false, "export image with oci spec")
 	rootCmd.Flags().StringVar(&fastoci, "fastoci", "", "build fastoci format")
 	rootCmd.Flags().StringVar(&overlaybd, "overlaybd", "", "build overlaybd format")
+	rootCmd.Flags().StringVar(&dbstr, "dbstr", "", "db included overlaybd conversion ")
+	rootCmd.Flags().StringVar(&dbType, "dbType", "", "Type of table to use for conversion cachin. Available: mysql. Default none")
 
 	rootCmd.MarkFlagRequired("repository")
 	rootCmd.MarkFlagRequired("input-tag")
