@@ -24,7 +24,7 @@ func (m *sqldb) GetEntryForRepo(ctx context.Context, host string, repository str
 	var entry Entry
 
 	row := m.db.QueryRowContext(ctx, "select host, repo, chain_id, data_digest, data_size from overlaybd_layers where host=? and repo=? and chain_id=?", host, repository, chainID)
-	if err := row.Scan(&entry.Host, &entry.Repository, &entry.ChainID, &entry.ConvertedDigest, &entry.DataSize); err == nil {
+	if err := row.Scan(&entry.Host, &entry.Repository, &entry.ChainID, &entry.ConvertedDigest, &entry.DataSize); err != nil {
 		return nil
 	}
 

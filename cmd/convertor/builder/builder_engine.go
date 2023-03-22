@@ -49,11 +49,12 @@ type builderEngine interface {
 	// UploadImage upload new manifest and config
 	UploadImage(ctx context.Context) error
 
+	// Cache Functions TODO, I can probably break these into a separate interface
 	CheckForConvertedLayer(ctx context.Context, chainID string) (*specs.Descriptor, error)
 
 	DownloadCachedLayer(ctx context.Context, idx int, desc *specs.Descriptor) error
 
-	// CheckForAlreadyConvertedManifest
+	AddLayerToCache(ctx context.Context, chainID string, idx int) error
 
 	// cleanup remove workdir
 	Cleanup()

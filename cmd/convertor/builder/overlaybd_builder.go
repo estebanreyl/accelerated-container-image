@@ -22,15 +22,16 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
+	"time"
 
 	"github.com/containerd/accelerated-container-image/pkg/label"
 	"github.com/containerd/accelerated-container-image/pkg/snapshot"
 	"github.com/containerd/containerd/errdefs"
-	"github.com/containerd/containerd/log"
 	"github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
@@ -76,7 +77,7 @@ func (e *overlaybdBuilderEngine) BuildLayer(ctx context.Context, idx int) error 
 
 	isCached := false
 	// Check if we used a cached layer, this allows avoiding create --> apply --> commit
-	if _, err := os.Stat("%s/overlaybd-commit"); err == nil {
+	if _, err := os.Stat(path.Join(layerDir, "overlaybd.commit")); err == nil {
 		isCached = true
 	}
 	if !isCached {
@@ -252,6 +253,13 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, cha
 		return nil, errdefs.ErrNotFound
 	}
 
+	// TODO Remove (Testing)
+	rand.Seed(time.Now().UnixNano())
+	if rand.Float64() < 0.5 {
+		logrus.Infof("Random invoked %s", chainID)
+		return nil, errdefs.ErrNotFound
+	}
+
 	// Try to find in the same repo, check existence on registry
 	entry := e.db.GetEntryForRepo(ctx, e.host, e.repository, chainID)
 	if entry != nil && entry.ChainID != "" {
@@ -264,7 +272,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, cha
 
 		if err == nil {
 			rc.Close()
-			log.G(ctx).Infof("found remote layer for chainID %s", chainID)
+			logrus.Infof("found remote layer for chainID %s", chainID)
 			return &desc, nil
 		}
 		if errdefs.IsNotFound(err) {
@@ -297,17 +305,27 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, cha
 			if err != nil {
 				continue
 			}
-			log.G(ctx).Infof("mount from %s success", entry.Repository)
-			log.G(ctx).Infof("found remote layer for chainID %s", chainID)
+			logrus.Infof("mount from %s success", entry.Repository)
+			logrus.Infof("found remote layer for chainID %s", chainID)
 			return &desc, nil
 		}
 	}
-	log.G(ctx).Infof("layer not found in remote")
+	logrus.Infof("layer not found in remote")
 	return nil, errdefs.ErrNotFound
 }
 
+func (e *overlaybdBuilderEngine) AddLayerToCache(ctx context.Context, chainID string, idx int) error {
+
+	// If the database is not set, no caching happens
+	if e.db == nil {
+		return nil
+	}
+
+	return e.db.CreateEntry(ctx, e.host, e.repository, e.overlaybdLayers[idx].Digest, chainID, e.overlaybdLayers[idx].Size)
+}
+
 func (e *overlaybdBuilderEngine) DownloadCachedLayer(ctx context.Context, idx int, desc *specs.Descriptor) error {
-	targetFile := path.Join(e.getLayerDir(idx), "overlaybd-commit")
+	targetFile := path.Join(e.getLayerDir(idx), "overlaybd.commit")
 	return downloadLayer(ctx, e.fetcher, targetFile, *desc, true)
 }
 

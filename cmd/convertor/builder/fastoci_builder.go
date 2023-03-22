@@ -193,6 +193,10 @@ func (e *fastOCIBuilderEngine) CheckForConvertedLayer(ctx context.Context, chain
 	return nil, errdefs.ErrNotFound
 }
 
+func (e *fastOCIBuilderEngine) AddLayerToCache(ctx context.Context, chainID string, idx int) error {
+	return nil
+}
+
 func (e *fastOCIBuilderEngine) DownloadCachedLayer(ctx context.Context, idx int, desc *specs.Descriptor) error {
 	return errdefs.ErrNotImplemented
 }

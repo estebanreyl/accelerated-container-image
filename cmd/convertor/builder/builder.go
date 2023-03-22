@@ -158,7 +158,7 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 					sendToChannel(ctx, downloaded[idx], nil)
 					return
 				}
-				logrus.Infof("Failed to download cached layer %d falling back to conversion", idx)
+				logrus.Infof("Failed to download cached layer %d falling back to conversion : %s", idx, err)
 				// Fallback to local conversion (May need to verify error in case a rollback is needed)
 			}
 
@@ -195,7 +195,7 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 
 		// upload goroutine
 		uploaded.Add(1)
-		go func(idx int) {
+		go func(idx int, chainId string) {
 			defer uploaded.Done()
 			if waitForChannel(ctx, converted[idx]); ctx.Err() != nil {
 				return
@@ -204,8 +204,9 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 				sendToChannel(ctx, errCh, errors.Wrapf(err, "failed to upload layer %d", idx))
 				return
 			}
+			b.engine.AddLayerToCache(ctx, chainId, idx)
 			logrus.Infof("layer %d uploaded", idx)
-		}(i)
+		}(i, chainID)
 	}
 	uploaded.Wait()
 	if retErr != nil {
