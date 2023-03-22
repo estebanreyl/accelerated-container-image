@@ -254,7 +254,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, cha
 
 	// Try to find in the same repo, check existence on registry
 	entry := e.db.GetEntryForRepo(ctx, e.host, e.repository, chainID)
-	if entry != nil {
+	if entry != nil && entry.ChainID != "" {
 		desc := specs.Descriptor{
 			MediaType: e.mediaTypeImageLayer(),
 			Digest:    digest.Digest(entry.ConvertedDigest),

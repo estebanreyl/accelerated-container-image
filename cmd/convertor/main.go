@@ -24,6 +24,7 @@ import (
 
 	"github.com/containerd/accelerated-container-image/cmd/convertor/builder"
 	"github.com/containerd/accelerated-container-image/cmd/convertor/database"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -124,7 +125,7 @@ func init() {
 	rootCmd.Flags().StringVar(&fastoci, "fastoci", "", "build fastoci format")
 	rootCmd.Flags().StringVar(&overlaybd, "overlaybd", "", "build overlaybd format")
 	rootCmd.Flags().StringVar(&dbstr, "dbstr", "", "db included overlaybd conversion ")
-	rootCmd.Flags().StringVar(&dbType, "dbType", "", "Type of table to use for conversion cachin. Available: mysql. Default none")
+	rootCmd.Flags().StringVar(&dbType, "db-type", "", "Type of table to use for conversion cachin. Available: mysql. Default none")
 
 	rootCmd.MarkFlagRequired("repository")
 	rootCmd.MarkFlagRequired("input-tag")

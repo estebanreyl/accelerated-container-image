@@ -23,7 +23,7 @@ func NewSqlDB(db *sql.DB) ConversionDatabase {
 func (m *sqldb) GetEntryForRepo(ctx context.Context, host string, repository string, chainID string) *Entry {
 	var entry Entry
 
-	row := m.db.QueryRowContext(ctx, "select host, repo, chain_id, data_digest, data_size from overlaybd_layers where host=? and repository=? and chain_id=?", host, repository, chainID)
+	row := m.db.QueryRowContext(ctx, "select host, repo, chain_id, data_digest, data_size from overlaybd_layers where host=? and repo=? and chain_id=?", host, repository, chainID)
 	if err := row.Scan(&entry.Host, &entry.Repository, &entry.ChainID, &entry.ConvertedDigest, &entry.DataSize); err == nil {
 		return nil
 	}
@@ -33,7 +33,7 @@ func (m *sqldb) GetEntryForRepo(ctx context.Context, host string, repository str
 
 func (m *sqldb) GetCrossRepoEntries(ctx context.Context, host string, chainID string) []*Entry {
 
-	rows, err := m.db.QueryContext(ctx, "select host, repository, chain_id, data_digest, data_size from overlaybd_layers where host=? and chain_id=?", host, chainID)
+	rows, err := m.db.QueryContext(ctx, "select host, repo, chain_id, data_digest, data_size from overlaybd_layers where host=? and chain_id=?", host, chainID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil
@@ -55,12 +55,12 @@ func (m *sqldb) GetCrossRepoEntries(ctx context.Context, host string, chainID st
 }
 
 func (m *sqldb) CreateEntry(ctx context.Context, host string, repository string, convertedDigest digest.Digest, chainID string, size int64) error {
-	_, err := m.db.ExecContext(ctx, "insert into overlaybd_layers(host, repository, chain_id, data_digest, data_size) values(?, ?, ?, ?, ?)", host, repository, chainID, convertedDigest, size)
+	_, err := m.db.ExecContext(ctx, "insert into overlaybd_layers(host, repo, chain_id, data_digest, data_size) values(?, ?, ?, ?, ?)", host, repository, chainID, convertedDigest, size)
 	return err
 }
 
 func (m *sqldb) DeleteEntry(ctx context.Context, host string, repository string, chainID string) error {
-	_, err := m.db.Exec("delete from overlaybd_layers where host=? and repository=? and chain_id=?", host, repository, chainID)
+	_, err := m.db.Exec("delete from overlaybd_layers where host=? and repo=? and chain_id=?", host, repository, chainID)
 	if err != nil {
 		return errors.Wrapf(err, "failed to remove invalid record in db")
 	}

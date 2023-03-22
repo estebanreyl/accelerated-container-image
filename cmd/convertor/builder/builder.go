@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	"github.com/containerd/accelerated-container-image/cmd/convertor/database"
+	"github.com/containerd/containerd/reference"
 	"github.com/containerd/containerd/remotes/docker"
 	"github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/identity"
@@ -69,6 +70,14 @@ func NewOverlayBDBuilder(ctx context.Context, opt BuilderOptions) (Builder, erro
 	engineBase.workDir = opt.WorkDir
 	engineBase.oci = opt.OCI
 	engineBase.db = opt.DB
+
+	refspec, err := reference.Parse(opt.Ref)
+	if err != nil {
+		return nil, err
+	}
+	engineBase.host = refspec.Hostname()
+	engineBase.repository = strings.TrimPrefix(refspec.Locator, engineBase.host+"/")
+
 	var engine builderEngine
 	switch opt.Engine {
 	case BuilderEngineTypeOverlayBD:
@@ -114,6 +123,7 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 	for i := 0; i < b.layers; i++ {
 		downloaded[i] = make(chan error)
 		converted[i] = make(chan error)
+		alreadyConverted[i] = make(chan *v1.Descriptor)
 
 		chain = append(chain, srcDiffIDs[i])
 		chainID := identity.ChainID(chain).String()
