@@ -46,17 +46,20 @@ type builderEngine interface {
 
 	UploadLayer(ctx context.Context, idx int) error
 
-	// UploadImage upload new manifest and config
+	// UploadImage uploads new manifest and config
 	UploadImage(ctx context.Context) error
 
-	// Cache Functions TODO, I can probably break these into a separate interface
+	// deduplication functions
+	// finds already converted layer in db and validates presence in registry
 	CheckForConvertedLayer(ctx context.Context, chainID string) (*specs.Descriptor, error)
 
+	// downloads the already converted layer
 	DownloadConvertedLayer(ctx context.Context, idx int, desc *specs.Descriptor) error
 
-	AddChainIdMapping(ctx context.Context, chainID string, idx int) error
+	// store chainID -> converted layer mapping for deduplication
+	StoreConvertedLayerDetails(ctx context.Context, chainID string, idx int) error
 
-	// cleanup remove workdir
+	// Cleanup removes workdir
 	Cleanup()
 }
 

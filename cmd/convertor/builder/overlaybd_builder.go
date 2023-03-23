@@ -200,7 +200,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, cha
 	return nil, errdefs.ErrNotFound
 }
 
-func (e *overlaybdBuilderEngine) AddChainIdMapping(ctx context.Context, chainID string, idx int) error {
+func (e *overlaybdBuilderEngine) StoreConvertedLayerDetails(ctx context.Context, chainID string, idx int) error {
 	if e.db == nil {
 		return nil
 	}

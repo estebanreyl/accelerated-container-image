@@ -202,7 +202,7 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 				sendToChannel(ctx, errCh, errors.Wrapf(err, "failed to upload layer %d", idx))
 				return
 			}
-			b.engine.AddChainIdMapping(ctx, chainId, idx)
+			b.engine.StoreConvertedLayerDetails(ctx, chainId, idx)
 			logrus.Infof("layer %d uploaded", idx)
 		}(i, chainID)
 	}

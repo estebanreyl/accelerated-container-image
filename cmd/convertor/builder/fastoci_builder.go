@@ -193,7 +193,7 @@ func (e *fastOCIBuilderEngine) CheckForConvertedLayer(ctx context.Context, chain
 	return nil, errdefs.ErrNotFound
 }
 
-func (e *fastOCIBuilderEngine) AddChainIdMapping(ctx context.Context, chainID string, idx int) error {
+func (e *fastOCIBuilderEngine) StoreConvertedLayerDetails(ctx context.Context, chainID string, idx int) error {
 	return nil
 }
 
