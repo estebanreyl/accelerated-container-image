@@ -131,10 +131,10 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 		// deduplication Goroutine
 		go func(idx int, chainId string) {
 			defer close(alreadyConverted[idx])
-			// Try to find chainId -> converted digest conversion if available
+			// try to find chainId -> converted digest conversion if available
 			desc, err := b.engine.CheckForConvertedLayer(ctx, chainId)
 			if err != nil {
-				// In the event of failure fallback to regular process
+				// in the event of failure fallback to regular process
 				return
 			}
 			alreadyConverted[idx] <- desc

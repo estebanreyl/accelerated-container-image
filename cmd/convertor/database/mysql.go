@@ -48,7 +48,6 @@ func (m *sqldb) GetEntryForRepo(ctx context.Context, host string, repository str
 }
 
 func (m *sqldb) GetCrossRepoEntries(ctx context.Context, host string, chainID string) []*Entry {
-
 	rows, err := m.db.QueryContext(ctx, "select host, repo, chain_id, data_digest, data_size from overlaybd_layers where host=? and chain_id=?", host, chainID)
 	if err != nil {
 		if err == sql.ErrNoRows {

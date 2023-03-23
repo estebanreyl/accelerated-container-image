@@ -81,7 +81,7 @@ var (
 					opt.DB = database.NewSqlDB(db)
 				case "":
 				default:
-					logrus.Warnf("db-type %s was provided but is not one of known db types. Available: mysql")
+					logrus.Warnf("db-type %s was provided but is not one of known db types. Available: mysql", dbType)
 					logrus.Warnf("falling back to no deduplication")
 				}
 

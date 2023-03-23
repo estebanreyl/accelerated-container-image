@@ -73,7 +73,7 @@ func (e *overlaybdBuilderEngine) BuildLayer(ctx context.Context, idx int) error 
 	layerDir := e.getLayerDir(idx)
 
 	alreadyConverted := false
-	// check if we used previously converted layer, this allows avoiding create --> apply --> commit
+	// check if we used a previously converted layer to skip conversion
 	if _, err := os.Stat(path.Join(layerDir, commitFile)); err == nil {
 		alreadyConverted = true
 	}
@@ -92,7 +92,6 @@ func (e *overlaybdBuilderEngine) BuildLayer(ctx context.Context, idx int) error 
 	}
 
 	if !alreadyConverted {
-
 		if err := e.apply(ctx, layerDir); err != nil {
 			return err
 		}
@@ -151,7 +150,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, cha
 	if entry != nil && entry.ChainID != "" {
 		desc := specs.Descriptor{
 			MediaType: e.mediaTypeImageLayer(),
-			Digest:    digest.Digest(entry.ConvertedDigest),
+			Digest:    entry.ConvertedDigest,
 			Size:      entry.DataSize,
 		}
 		rc, err := e.fetcher.Fetch(ctx, desc)
@@ -191,7 +190,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, cha
 				continue // try a different repo if available
 			}
 
-			logrus.Infof("mount from %s was succesful", entry.Repository)
+			logrus.Infof("mount from %s was successful", entry.Repository)
 			logrus.Infof("found remote layer for chainID %s", chainID)
 			return &desc, nil
 		}
