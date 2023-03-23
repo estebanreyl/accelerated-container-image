@@ -52,9 +52,9 @@ type builderEngine interface {
 	// Cache Functions TODO, I can probably break these into a separate interface
 	CheckForConvertedLayer(ctx context.Context, chainID string) (*specs.Descriptor, error)
 
-	DownloadCachedLayer(ctx context.Context, idx int, desc *specs.Descriptor) error
+	DownloadConvertedLayer(ctx context.Context, idx int, desc *specs.Descriptor) error
 
-	AddLayerToCache(ctx context.Context, chainID string, idx int) error
+	AddChainIdMapping(ctx context.Context, chainID string, idx int) error
 
 	// cleanup remove workdir
 	Cleanup()

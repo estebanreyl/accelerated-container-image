@@ -152,7 +152,7 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 			defer close(downloaded[idx])
 			if cachedLayer != nil {
 				// download the converted layer
-				err := b.engine.DownloadCachedLayer(ctx, idx, cachedLayer)
+				err := b.engine.DownloadConvertedLayer(ctx, idx, cachedLayer)
 				if err == nil {
 					logrus.Infof("downloaded cached layer %d", idx)
 					sendToChannel(ctx, downloaded[idx], nil)
@@ -204,7 +204,7 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 				sendToChannel(ctx, errCh, errors.Wrapf(err, "failed to upload layer %d", idx))
 				return
 			}
-			b.engine.AddLayerToCache(ctx, chainId, idx)
+			b.engine.AddChainIdMapping(ctx, chainId, idx)
 			logrus.Infof("layer %d uploaded", idx)
 		}(i, chainID)
 	}

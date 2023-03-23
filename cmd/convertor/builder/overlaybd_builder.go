@@ -22,12 +22,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
-	"time"
 
 	"github.com/containerd/accelerated-container-image/pkg/label"
 	"github.com/containerd/accelerated-container-image/pkg/snapshot"
@@ -253,13 +251,6 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, cha
 		return nil, errdefs.ErrNotFound
 	}
 
-	// TODO Remove (Testing)
-	rand.Seed(time.Now().UnixNano())
-	if rand.Float64() < 0.5 {
-		logrus.Infof("Random invoked %s", chainID)
-		return nil, errdefs.ErrNotFound
-	}
-
 	// Try to find in the same repo, check existence on registry
 	entry := e.db.GetEntryForRepo(ctx, e.host, e.repository, chainID)
 	if entry != nil && entry.ChainID != "" {
@@ -314,7 +305,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, cha
 	return nil, errdefs.ErrNotFound
 }
 
-func (e *overlaybdBuilderEngine) AddLayerToCache(ctx context.Context, chainID string, idx int) error {
+func (e *overlaybdBuilderEngine) AddChainIdMapping(ctx context.Context, chainID string, idx int) error {
 
 	// If the database is not set, no caching happens
 	if e.db == nil {
@@ -324,7 +315,7 @@ func (e *overlaybdBuilderEngine) AddLayerToCache(ctx context.Context, chainID st
 	return e.db.CreateEntry(ctx, e.host, e.repository, e.overlaybdLayers[idx].Digest, chainID, e.overlaybdLayers[idx].Size)
 }
 
-func (e *overlaybdBuilderEngine) DownloadCachedLayer(ctx context.Context, idx int, desc *specs.Descriptor) error {
+func (e *overlaybdBuilderEngine) DownloadConvertedLayer(ctx context.Context, idx int, desc *specs.Descriptor) error {
 	targetFile := path.Join(e.getLayerDir(idx), "overlaybd.commit")
 	return downloadLayer(ctx, e.fetcher, targetFile, *desc, true)
 }

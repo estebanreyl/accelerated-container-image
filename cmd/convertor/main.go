@@ -73,7 +73,7 @@ var (
 				switch dbType {
 				case "mysql":
 					if dbstr == "" {
-						logrus.Warnf("No dbstr was provided, falling back to no db")
+						logrus.Warnf("No db-str was provided, falling back to no db")
 					}
 					db, err := sql.Open("mysql", dbstr)
 					if err != nil {
@@ -124,8 +124,8 @@ func init() {
 	rootCmd.Flags().BoolVarP(&oci, "oci", "", false, "export image with oci spec")
 	rootCmd.Flags().StringVar(&fastoci, "fastoci", "", "build fastoci format")
 	rootCmd.Flags().StringVar(&overlaybd, "overlaybd", "", "build overlaybd format")
-	rootCmd.Flags().StringVar(&dbstr, "dbstr", "", "db included overlaybd conversion ")
-	rootCmd.Flags().StringVar(&dbType, "db-type", "", "Type of table to use for conversion cachin. Available: mysql. Default none")
+	rootCmd.Flags().StringVar(&dbstr, "db-str", "", "db str for overlaybd conversion")
+	rootCmd.Flags().StringVar(&dbType, "db-type", "", "type of db to use for conversion deduplication. Available: mysql. Default none")
 
 	rootCmd.MarkFlagRequired("repository")
 	rootCmd.MarkFlagRequired("input-tag")
