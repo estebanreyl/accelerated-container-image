@@ -68,12 +68,10 @@ var (
 				opt.Engine = builder.BuilderEngineTypeOverlayBD
 				opt.TargetRef = repo + ":" + overlaybd
 
-				// Both empty = good
-				// One full, other empty
 				switch dbType {
 				case "mysql":
 					if dbstr == "" {
-						logrus.Warnf("No db-str was provided, falling back to no db")
+						logrus.Warnf("no db-str was provided, falling back to no deduplication")
 					}
 					db, err := sql.Open("mysql", dbstr)
 					if err != nil {
@@ -81,6 +79,10 @@ var (
 						os.Exit(1)
 					}
 					opt.DB = database.NewSqlDB(db)
+				case "":
+				default:
+					logrus.Warnf("db-type %s was provided but is not one of known db types. Available: mysql")
+					logrus.Warnf("falling back to no deduplication")
 				}
 
 				builder, err := builder.NewOverlayBDBuilder(ctx, opt)

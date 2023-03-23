@@ -56,7 +56,6 @@ func NewOverlayBDBuilderEngine(base *builderEngineBase) builderEngine {
 	config.Lowers = append(config.Lowers, snapshot.OverlayBDBSConfigLower{
 		File: overlaybdBaseLayer,
 	})
-
 	return &overlaybdBuilderEngine{
 		builderEngineBase: base,
 		overlaybdConfig:   config,
@@ -73,12 +72,12 @@ func (e *overlaybdBuilderEngine) DownloadLayer(ctx context.Context, idx int) err
 func (e *overlaybdBuilderEngine) BuildLayer(ctx context.Context, idx int) error {
 	layerDir := e.getLayerDir(idx)
 
-	isCached := false
-	// Check if we used a cached layer, this allows avoiding create --> apply --> commit
-	if _, err := os.Stat(path.Join(layerDir, "overlaybd.commit")); err == nil {
-		isCached = true
+	alreadyConverted := false
+	// check if we used previously converted layer, this allows avoiding create --> apply --> commit
+	if _, err := os.Stat(path.Join(layerDir, commitFile)); err == nil {
+		alreadyConverted = true
 	}
-	if !isCached {
+	if !alreadyConverted {
 		if err := e.create(ctx, layerDir); err != nil {
 			return err
 		}
@@ -88,12 +87,11 @@ func (e *overlaybdBuilderEngine) BuildLayer(ctx context.Context, idx int) error 
 		Index: path.Join(layerDir, "writable_index"),
 	}
 
-	// Not sure that this still needs to be written?
 	if err := writeConfig(layerDir, e.overlaybdConfig); err != nil {
 		return err
 	}
 
-	if !isCached {
+	if !alreadyConverted {
 
 		if err := e.apply(ctx, layerDir); err != nil {
 			return err
@@ -141,6 +139,78 @@ func (e *overlaybdBuilderEngine) UploadImage(ctx context.Context) error {
 	e.manifest.Layers = append([]specs.Descriptor{baseDesc}, e.manifest.Layers...)
 	e.config.RootFS.DiffIDs = append([]digest.Digest{baseDesc.Digest}, e.config.RootFS.DiffIDs...)
 	return e.uploadManifestAndConfig(ctx)
+}
+
+func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, chainID string) (*specs.Descriptor, error) {
+	if e.db == nil {
+		return nil, errdefs.ErrNotFound
+	}
+
+	// try to find in the same repo, check existence on registry
+	entry := e.db.GetEntryForRepo(ctx, e.host, e.repository, chainID)
+	if entry != nil && entry.ChainID != "" {
+		desc := specs.Descriptor{
+			MediaType: e.mediaTypeImageLayer(),
+			Digest:    digest.Digest(entry.ConvertedDigest),
+			Size:      entry.DataSize,
+		}
+		rc, err := e.fetcher.Fetch(ctx, desc)
+
+		if err == nil {
+			rc.Close()
+			logrus.Infof("found remote layer for chainID %s", chainID)
+			return &desc, nil
+		}
+		if errdefs.IsNotFound(err) {
+			// invalid record in db, which is not found in registry, remove it
+			err := e.db.DeleteEntry(ctx, e.host, e.repository, chainID)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// found record in other repos, try mounting it to the target repo
+	entries := e.db.GetCrossRepoEntries(ctx, e.host, chainID)
+	for _, entry := range entries {
+		desc := specs.Descriptor{
+			MediaType: e.mediaTypeImageLayer(),
+			Digest:    entry.ConvertedDigest,
+			Size:      entry.DataSize,
+			Annotations: map[string]string{
+				label.OverlayBDBlobDigest: entry.ConvertedDigest.String(),
+				label.OverlayBDBlobSize:   fmt.Sprintf("%d", entry.DataSize),
+			},
+		}
+
+		_, err := e.pusher.Push(ctx, desc)
+		if errdefs.IsAlreadyExists(err) {
+			desc.Annotations = nil
+
+			if err := e.db.CreateEntry(ctx, e.host, e.repository, entry.ConvertedDigest, chainID, entry.DataSize); err != nil {
+				continue // try a different repo if available
+			}
+
+			logrus.Infof("mount from %s was succesful", entry.Repository)
+			logrus.Infof("found remote layer for chainID %s", chainID)
+			return &desc, nil
+		}
+	}
+
+	logrus.Infof("layer not found in remote")
+	return nil, errdefs.ErrNotFound
+}
+
+func (e *overlaybdBuilderEngine) AddChainIdMapping(ctx context.Context, chainID string, idx int) error {
+	if e.db == nil {
+		return nil
+	}
+	return e.db.CreateEntry(ctx, e.host, e.repository, e.overlaybdLayers[idx].Digest, chainID, e.overlaybdLayers[idx].Size)
+}
+
+func (e *overlaybdBuilderEngine) DownloadConvertedLayer(ctx context.Context, idx int, desc *specs.Descriptor) error {
+	targetFile := path.Join(e.getLayerDir(idx), commitFile)
+	return downloadLayer(ctx, e.fetcher, targetFile, *desc, true)
 }
 
 func (e *overlaybdBuilderEngine) Cleanup() {
@@ -242,82 +312,6 @@ func (e *overlaybdBuilderEngine) commit(ctx context.Context, dir string) error {
 		return errors.Wrapf(err, "failed to overlaybd-commit: %s", out)
 	}
 	return nil
-}
-
-func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, chainID string) (*specs.Descriptor, error) {
-
-	// If the database is not set, no caching happens
-	if e.db == nil {
-		return nil, errdefs.ErrNotFound
-	}
-
-	// Try to find in the same repo, check existence on registry
-	entry := e.db.GetEntryForRepo(ctx, e.host, e.repository, chainID)
-	if entry != nil && entry.ChainID != "" {
-		desc := specs.Descriptor{
-			MediaType: e.mediaTypeImageLayer(),
-			Digest:    digest.Digest(entry.ConvertedDigest),
-			Size:      entry.DataSize,
-		}
-		rc, err := e.fetcher.Fetch(ctx, desc)
-
-		if err == nil {
-			rc.Close()
-			logrus.Infof("found remote layer for chainID %s", chainID)
-			return &desc, nil
-		}
-		if errdefs.IsNotFound(err) {
-			// invalid record in db, which is not found in registry, remove it
-			err := e.db.DeleteEntry(ctx, e.host, e.repository, chainID)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	// found record in other repo, mount it to target repo
-	entries := e.db.GetCrossRepoEntries(ctx, e.host, chainID)
-	for _, entry := range entries {
-		// try mount
-		desc := specs.Descriptor{
-			MediaType: e.mediaTypeImageLayer(),
-			Digest:    entry.ConvertedDigest,
-			Size:      entry.DataSize,
-			Annotations: map[string]string{
-				label.OverlayBDBlobDigest: entry.ConvertedDigest.String(),
-				label.OverlayBDBlobSize:   fmt.Sprintf("%d", entry.DataSize),
-			},
-		}
-
-		_, err := e.pusher.Push(ctx, desc)
-		if errdefs.IsAlreadyExists(err) {
-			desc.Annotations = nil
-			err := e.db.CreateEntry(ctx, e.host, e.repository, entry.ConvertedDigest, chainID, entry.DataSize)
-			if err != nil {
-				continue
-			}
-			logrus.Infof("mount from %s success", entry.Repository)
-			logrus.Infof("found remote layer for chainID %s", chainID)
-			return &desc, nil
-		}
-	}
-	logrus.Infof("layer not found in remote")
-	return nil, errdefs.ErrNotFound
-}
-
-func (e *overlaybdBuilderEngine) AddChainIdMapping(ctx context.Context, chainID string, idx int) error {
-
-	// If the database is not set, no caching happens
-	if e.db == nil {
-		return nil
-	}
-
-	return e.db.CreateEntry(ctx, e.host, e.repository, e.overlaybdLayers[idx].Digest, chainID, e.overlaybdLayers[idx].Size)
-}
-
-func (e *overlaybdBuilderEngine) DownloadConvertedLayer(ctx context.Context, idx int, desc *specs.Descriptor) error {
-	targetFile := path.Join(e.getLayerDir(idx), "overlaybd.commit")
-	return downloadLayer(ctx, e.fetcher, targetFile, *desc, true)
 }
 
 type writeCountWrapper struct {

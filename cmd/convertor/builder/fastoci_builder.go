@@ -189,8 +189,7 @@ func (e *fastOCIBuilderEngine) UploadImage(ctx context.Context) error {
 }
 
 func (e *fastOCIBuilderEngine) CheckForConvertedLayer(ctx context.Context, chainID string) (*specs.Descriptor, error) {
-	// For the purposes of fastOCI since layers are not meant to be changed there is no need to
-	// do any caching of the converted layers.
+	// For the purposes of fastOCI as layers are not modified, this logic becomes irrelevant.
 	return nil, errdefs.ErrNotFound
 }
 

@@ -128,14 +128,13 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 		chain = append(chain, srcDiffIDs[i])
 		chainID := identity.ChainID(chain).String()
 
-		// Check cache goroutine
-		// Only needs to apply to overlaybd
-		// conversion really
+		// deduplication Goroutine
 		go func(idx int, chainId string) {
-			// Try to find chainId -> converted digest conversion if available
 			defer close(alreadyConverted[idx])
+			// Try to find chainId -> converted digest conversion if available
 			desc, err := b.engine.CheckForConvertedLayer(ctx, chainId)
 			if err != nil {
+				// In the event of failure fallback to regular process
 				return
 			}
 			alreadyConverted[idx] <- desc
@@ -158,8 +157,7 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 					sendToChannel(ctx, downloaded[idx], nil)
 					return
 				}
-				logrus.Infof("Failed to download cached layer %d falling back to conversion : %s", idx, err)
-				// Fallback to local conversion (May need to verify error in case a rollback is needed)
+				logrus.Infof("failed to download cached layer %d falling back to conversion : %s", idx, err)
 			}
 
 			if err := b.engine.DownloadLayer(ctx, idx); err != nil {
