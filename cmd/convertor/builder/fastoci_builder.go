@@ -188,15 +188,17 @@ func (e *fastOCIBuilderEngine) UploadImage(ctx context.Context) error {
 	return e.uploadManifestAndConfig(ctx)
 }
 
+// CheckForConvertedLayer TODO
 func (e *fastOCIBuilderEngine) CheckForConvertedLayer(ctx context.Context, chainID string) (*specs.Descriptor, error) {
-	// for the purposes of fastOCI as layers are not modified, this logic becomes irrelevant.
 	return nil, errdefs.ErrNotFound
 }
 
+// StoreConvertedLayerDetails TODO
 func (e *fastOCIBuilderEngine) StoreConvertedLayerDetails(ctx context.Context, chainID string, idx int) error {
 	return nil
 }
 
+// DownloadConvertedLayer TODO
 func (e *fastOCIBuilderEngine) DownloadConvertedLayer(ctx context.Context, idx int, desc *specs.Descriptor) error {
 	return errdefs.ErrNotImplemented
 }
