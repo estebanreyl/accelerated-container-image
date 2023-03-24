@@ -84,7 +84,6 @@ Flags:
 $ bin/convertor -r docker.io/overlaybd/redis -u user:pass -i 6.2.6 -o 6.2.6_obd --db-str "dbuser:dbpass@tcp(127.0.0.1:3306)/dedup" --db-type mysql
 ```
 
-
 ## libext2fs
 
 Standalone userspace image-convertor is developed based on [libext2fs](https://github.com/tytso/e2fsprogs), and we have provided a [customized libext2fs](https://github.com/data-accelerator/e2fsprogs) to make the conversion faster. We used `standalone userspace image-convertor (with custom libext2fs)`, `standalone userspace image-convertor (with origin libext2fs)` and `embedded image-convertor` to convert some images and did a comparison for reference.

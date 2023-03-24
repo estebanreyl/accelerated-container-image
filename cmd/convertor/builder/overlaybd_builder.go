@@ -86,11 +86,9 @@ func (e *overlaybdBuilderEngine) BuildLayer(ctx context.Context, idx int) error 
 		Data:  path.Join(layerDir, "writable_data"),
 		Index: path.Join(layerDir, "writable_index"),
 	}
-
 	if err := writeConfig(layerDir, e.overlaybdConfig); err != nil {
 		return err
 	}
-
 	if !alreadyConverted {
 		if err := e.apply(ctx, layerDir); err != nil {
 			return err
@@ -145,7 +143,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, cha
 		return nil, errdefs.ErrNotFound
 	}
 
-	// try to find in the same repo, check existence on registry
+	// try to find in the same repo then check existence on registry
 	entry := e.db.GetEntryForRepo(ctx, e.host, e.repository, chainID)
 	if entry != nil && entry.ChainID != "" {
 		desc := specs.Descriptor{
@@ -256,8 +254,8 @@ func (e *overlaybdBuilderEngine) uploadBaseLayer(ctx context.Context) (specs.Des
 		Digest:    digester.Digest(),
 		Size:      countWriter.c,
 		Annotations: map[string]string{
-			"containerd.io/snapshot/overlaybd/blob-digest": digester.Digest().String(),
-			"containerd.io/snapshot/overlaybd/blob-size":   fmt.Sprintf("%d", countWriter.c),
+			label.OverlayBDBlobDigest: digester.Digest().String(),
+			label.OverlayBDBlobSize:   fmt.Sprintf("%d", countWriter.c),
 		},
 	}
 	if err = uploadBlob(ctx, e.pusher, tarFile, baseDesc); err != nil {

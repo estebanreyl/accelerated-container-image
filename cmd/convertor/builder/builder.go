@@ -129,10 +129,10 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 		chainID := identity.ChainID(chain).String()
 
 		// deduplication Goroutine
-		go func(idx int, chainId string) {
+		go func(idx int, chainID string) {
 			defer close(alreadyConverted[idx])
-			// try to find chainId -> converted digest conversion if available
-			desc, err := b.engine.CheckForConvertedLayer(ctx, chainId)
+			// try to find chainID -> converted digest conversion if available
+			desc, err := b.engine.CheckForConvertedLayer(ctx, chainID)
 			if err != nil {
 				// in the event of failure fallback to regular process
 				return
@@ -193,7 +193,7 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 
 		// upload goroutine
 		uploaded.Add(1)
-		go func(idx int, chainId string) {
+		go func(idx int, chainID string) {
 			defer uploaded.Done()
 			if waitForChannel(ctx, converted[idx]); ctx.Err() != nil {
 				return
@@ -202,7 +202,7 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 				sendToChannel(ctx, errCh, errors.Wrapf(err, "failed to upload layer %d", idx))
 				return
 			}
-			b.engine.StoreConvertedLayerDetails(ctx, chainId, idx)
+			b.engine.StoreConvertedLayerDetails(ctx, chainID, idx)
 			logrus.Infof("layer %d uploaded", idx)
 		}(i, chainID)
 	}

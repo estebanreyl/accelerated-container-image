@@ -46,7 +46,7 @@ type builderEngine interface {
 
 	UploadLayer(ctx context.Context, idx int) error
 
-	// UploadImage uploads new manifest and config
+	// UploadImage upload new manifest and config
 	UploadImage(ctx context.Context) error
 
 	// deduplication functions
