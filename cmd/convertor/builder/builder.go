@@ -132,7 +132,7 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 		go func(idx int, chainID string) {
 			defer close(alreadyConverted[idx])
 			// try to find chainID -> converted digest conversion if available
-			desc, err := b.engine.CheckForConvertedLayer(ctx, chainID)
+			desc, err := b.engine.CheckForConvertedLayer(ctx, idx, chainID)
 			if err != nil {
 				// in the event of failure fallback to regular process
 				return

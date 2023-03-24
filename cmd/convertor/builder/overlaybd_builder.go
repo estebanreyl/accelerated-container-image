@@ -37,9 +37,9 @@ import (
 )
 
 const (
-	overlaybdBaseLayer = "/opt/overlaybd/baselayers/ext4_64"
-
-	commitFile = "overlaybd.commit"
+	overlaybdBaseLayer      = "/opt/overlaybd/baselayers/ext4_64"
+	commitFile              = "overlaybd.commit"
+	labelDistributionSource = "containerd.io/distribution.source"
 )
 
 type overlaybdBuilderEngine struct {
@@ -138,7 +138,7 @@ func (e *overlaybdBuilderEngine) UploadImage(ctx context.Context) error {
 	return e.uploadManifestAndConfig(ctx)
 }
 
-func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, chainID string) (*specs.Descriptor, error) {
+func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, idx int, chainID string) (*specs.Descriptor, error) {
 	if e.db == nil {
 		return nil, errdefs.ErrNotFound
 	}
@@ -155,7 +155,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, cha
 
 		if err == nil {
 			rc.Close()
-			logrus.Infof("found remote layer for chainID %s", chainID)
+			logrus.Infof("layer %d found in remote with chainID %s", idx, chainID)
 			return &desc, nil
 		}
 		if errdefs.IsNotFound(err) {
@@ -175,8 +175,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, cha
 			Digest:    entry.ConvertedDigest,
 			Size:      entry.DataSize,
 			Annotations: map[string]string{
-				label.OverlayBDBlobDigest: entry.ConvertedDigest.String(),
-				label.OverlayBDBlobSize:   fmt.Sprintf("%d", entry.DataSize),
+				fmt.Sprintf("%s.%s", labelDistributionSource, e.host): entry.Repository,
 			},
 		}
 
@@ -188,13 +187,13 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, cha
 				continue // try a different repo if available
 			}
 
-			logrus.Infof("mount from %s was successful", entry.Repository)
-			logrus.Infof("found remote layer for chainID %s", chainID)
+			logrus.Infof("layer %d mount from %s was successful", idx, entry.Repository)
+			logrus.Infof("layer %d found in remote with chainID %s", idx, chainID)
 			return &desc, nil
 		}
 	}
 
-	logrus.Infof("layer not found in remote")
+	logrus.Infof("layer %d not found in remote", idx)
 	return nil, errdefs.ErrNotFound
 }
 

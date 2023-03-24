@@ -189,7 +189,7 @@ func (e *fastOCIBuilderEngine) UploadImage(ctx context.Context) error {
 }
 
 // CheckForConvertedLayer TODO
-func (e *fastOCIBuilderEngine) CheckForConvertedLayer(ctx context.Context, chainID string) (*specs.Descriptor, error) {
+func (e *fastOCIBuilderEngine) CheckForConvertedLayer(ctx context.Context, idx int, chainID string) (*specs.Descriptor, error) {
 	return nil, errdefs.ErrNotFound
 }
 

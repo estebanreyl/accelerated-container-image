@@ -51,7 +51,7 @@ type builderEngine interface {
 
 	// deduplication functions
 	// finds already converted layer in db and validates presence in registry
-	CheckForConvertedLayer(ctx context.Context, chainID string) (*specs.Descriptor, error)
+	CheckForConvertedLayer(ctx context.Context, idx int, chainID string) (*specs.Descriptor, error)
 
 	// downloads the already converted layer
 	DownloadConvertedLayer(ctx context.Context, idx int, desc *specs.Descriptor) error
