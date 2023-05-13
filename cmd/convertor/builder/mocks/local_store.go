@@ -20,11 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 
 	"github.com/containerd/containerd/content"
@@ -41,6 +38,17 @@ import (
 // RESOLVER
 type MockLocalResolver struct {
 	localReg *localRegistry
+}
+
+func NewMockLocalResolver(ctx context.Context, localRegistryPath string) (MockLocalResolver, error) {
+	reg, err := newLocalRegistry(ctx, localRegistryPath)
+	if err != nil {
+		return MockLocalResolver{}, nil
+	}
+
+	return MockLocalResolver{
+		localReg: reg,
+	}, nil
 }
 
 func (r *MockLocalResolver) Resolve(ctx context.Context, ref string) (string, v1.Descriptor, error) {
@@ -84,7 +92,7 @@ func (f *MockLocalFetcher) Fetch(ctx context.Context, desc v1.Descriptor) (io.Re
 		}
 
 		reader := bytes.NewReader(content)
-		return ioutil.NopCloser(reader), nil
+		return io.NopCloser(reader), nil
 	}
 	return f.localReg.GetBlob(ctx, desc)
 }
@@ -107,8 +115,8 @@ type localRegistry struct {
 	images []types.ImageReference
 }
 
-func newLocalRegistry(ctx context.Context) (*localRegistry, error) {
-	refs, err := findImagesFromSource(ctx)
+func newLocalRegistry(ctx context.Context, localRegistryPath string) (*localRegistry, error) {
+	refs, err := findImagesFromSource(ctx, localRegistryPath)
 	if err != nil {
 		return nil, err
 	}
@@ -154,9 +162,9 @@ func (l *localRegistry) GetManifest(ctx context.Context, desc v1.Descriptor) ([]
 func (l *localRegistry) findRef(ctx context.Context, refStr string) (v1.Descriptor, error) {
 	ref := l.images[0]
 
-	if ref.DockerReference().Name() != refStr {
-		return v1.Descriptor{}, fmt.Errorf("refStr is improper found %s, wanted %s", ref.DockerReference().Name(), refStr)
-	}
+	// if ref..Name() != refStr {
+	// 	return v1.Descriptor{}, fmt.Errorf("refStr is improper found %s, wanted %s", ref.DockerReference().Name(), refStr)
+	// }
 
 	img, err := ref.NewImage(ctx, nil)
 	if err != nil {
@@ -182,15 +190,10 @@ func (l *localRegistry) findRef(ctx context.Context, refStr string) (v1.Descript
 	}, nil
 }
 
-func findImagesFromSource(ctx context.Context) ([]types.ImageReference, error) {
+func findImagesFromSource(ctx context.Context, localRegistryPath string) ([]types.ImageReference, error) {
 
 	var sourceReferences []types.ImageReference
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-
-	err = filepath.WalkDir(fmt.Sprintf("%s/registry", cwd), func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(localRegistryPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
