@@ -23,9 +23,12 @@ import (
 	"io"
 	"io/fs"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images"
+	"github.com/containerd/containerd/reference"
 	"github.com/containerd/containerd/remotes"
 	"github.com/containers/image/v5/directory"
 	"github.com/containers/image/v5/manifest"
@@ -34,6 +37,13 @@ import (
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
+
+type internalImage struct {
+	descriptor v1.Descriptor
+	ref        types.ImageReference
+}
+
+type internalRegistry map[string]map[string]*internalImage
 
 // RESOLVER
 type MockLocalResolver struct {
@@ -52,7 +62,7 @@ func NewMockLocalResolver(ctx context.Context, localRegistryPath string) (MockLo
 }
 
 func (r *MockLocalResolver) Resolve(ctx context.Context, ref string) (string, v1.Descriptor, error) {
-	desc, err := r.localReg.findRef(ctx, ref)
+	desc, err := r.localReg.findDescriptorFromRef(ctx, ref)
 	if err != nil {
 		return "", v1.Descriptor{}, err
 	}
@@ -60,20 +70,31 @@ func (r *MockLocalResolver) Resolve(ctx context.Context, ref string) (string, v1
 }
 
 func (r *MockLocalResolver) Fetcher(ctx context.Context, ref string) (remotes.Fetcher, error) {
+	_, repository, _, err := ParseRef(ctx, ref)
+	if err != nil {
+		return nil, err
+	}
 	return &MockLocalFetcher{
-		localReg: r.localReg,
+		localReg:   r.localReg,
+		repository: repository,
 	}, nil
 }
 
 func (r *MockLocalResolver) Pusher(ctx context.Context, ref string) (remotes.Pusher, error) {
+	_, repository, _, err := ParseRef(ctx, ref)
+	if err != nil {
+		return nil, err
+	}
 	return &MockLocalPusher{
-		localReg: r.localReg,
+		localReg:   r.localReg,
+		repository: repository,
 	}, nil
 }
 
 // FETCHER
 type MockLocalFetcher struct {
-	localReg *localRegistry
+	localReg   *localRegistry
+	repository string
 }
 
 func (f *MockLocalFetcher) Fetch(ctx context.Context, desc v1.Descriptor) (io.ReadCloser, error) {
@@ -85,7 +106,7 @@ func (f *MockLocalFetcher) Fetch(ctx context.Context, desc v1.Descriptor) (io.Re
 		v1.MediaTypeImageManifest,
 		v1.MediaTypeImageIndex:
 
-		content, err := f.localReg.GetManifest(ctx, desc)
+		content, err := f.localReg.GetManifest(ctx, f.repository, desc)
 
 		if err != nil {
 			return nil, err
@@ -94,12 +115,13 @@ func (f *MockLocalFetcher) Fetch(ctx context.Context, desc v1.Descriptor) (io.Re
 		reader := bytes.NewReader(content)
 		return io.NopCloser(reader), nil
 	}
-	return f.localReg.GetBlob(ctx, desc)
+	return f.localReg.GetBlob(ctx, f.repository, desc)
 }
 
 // PUSHER
 type MockLocalPusher struct {
-	localReg *localRegistry
+	localReg   *localRegistry
+	repository string
 }
 
 // Not used by overlaybd conversion
@@ -112,38 +134,48 @@ func (p MockLocalPusher) Push(ctx context.Context, desc v1.Descriptor) (content.
 }
 
 type localRegistry struct {
-	images []types.ImageReference
+	registryInternal internalRegistry
 }
 
 func newLocalRegistry(ctx context.Context, localRegistryPath string) (*localRegistry, error) {
-	refs, err := findImagesFromSource(ctx, localRegistryPath)
+	registryInternal, err := findImagesFromSource(ctx, localRegistryPath)
 	if err != nil {
 		return nil, err
 	}
 
 	return &localRegistry{
-		images: refs,
+		registryInternal: registryInternal,
 	}, nil
 }
 
-func (l *localRegistry) GetBlob(ctx context.Context, desc v1.Descriptor) (io.ReadCloser, error) {
-	ref := l.images[0]
+func (l *localRegistry) GetBlob(ctx context.Context, repository string, desc v1.Descriptor) (io.ReadCloser, error) {
+	findBlobGivenRef := func(ctx context.Context, ref types.ImageReference, desc v1.Descriptor) (io.ReadCloser, error) {
+		img, err := ref.NewImageSource(ctx, nil)
+		if err != nil {
+			return nil, err
+		}
+		defer img.Close()
 
-	img, err := ref.NewImageSource(ctx, nil)
-	if err != nil {
-		return nil, err
+		stream, _, err := img.GetBlob(ctx, manifest.BlobInfoFromOCI1Descriptor(desc), none.NoCache)
+		if err != nil {
+			return nil, err
+		}
+		return stream, nil
 	}
-	defer img.Close()
 
-	stream, _, err := img.GetBlob(ctx, manifest.BlobInfoFromOCI1Descriptor(desc), none.NoCache)
-	if err != nil {
-		return nil, err
+	// Foreach to go over all images in a repository
+	for _, image := range l.registryInternal[repository] {
+		stream, err := findBlobGivenRef(ctx, image.ref, desc)
+		if err != nil {
+			continue // Try all refs for blob in the repository
+		}
+		return stream, nil
 	}
-	return stream, nil
+	return nil, errors.New("Blob not found")
 }
 
-func (l *localRegistry) GetManifest(ctx context.Context, desc v1.Descriptor) ([]byte, error) {
-	ref := l.images[0]
+func (l *localRegistry) GetManifest(ctx context.Context, repository string, desc v1.Descriptor) ([]byte, error) {
+	ref := l.registryInternal[repository][desc.Digest.String()].ref
 
 	img, err := ref.NewImage(ctx, nil)
 	if err != nil {
@@ -159,12 +191,23 @@ func (l *localRegistry) GetManifest(ctx context.Context, desc v1.Descriptor) ([]
 	return mnfst, nil
 }
 
-func (l *localRegistry) findRef(ctx context.Context, refStr string) (v1.Descriptor, error) {
-	ref := l.images[0]
+func (l *localRegistry) findDescriptorFromRef(ctx context.Context, refStr string) (v1.Descriptor, error) {
+	_, repository, object, err := ParseRef(ctx, refStr)
+	if err != nil {
+		return v1.Descriptor{}, err
+	}
 
-	// if ref..Name() != refStr {
-	// 	return v1.Descriptor{}, fmt.Errorf("refStr is improper found %s, wanted %s", ref.DockerReference().Name(), refStr)
-	// }
+	if _, ok := l.registryInternal[repository]; !ok {
+		return v1.Descriptor{}, errors.New("Repository not found")
+	}
+	img, ok := l.registryInternal[repository][object]
+	if !ok {
+		return v1.Descriptor{}, errors.New("Reference not found")
+	}
+	return img.descriptor, nil
+}
+
+func getDesc(ctx context.Context, ref types.ImageReference) (v1.Descriptor, error) {
 
 	img, err := ref.NewImage(ctx, nil)
 	if err != nil {
@@ -190,9 +233,14 @@ func (l *localRegistry) findRef(ctx context.Context, refStr string) (v1.Descript
 	}, nil
 }
 
-func findImagesFromSource(ctx context.Context, localRegistryPath string) ([]types.ImageReference, error) {
+func findImagesFromSource(ctx context.Context, localRegistryPath string) (internalRegistry, error) {
 
 	var sourceReferences []types.ImageReference
+
+	// Repository -> Image -> (Ref + Descriptor)
+	registryInternal := make(internalRegistry)
+	re := regexp.MustCompile(`^.+builder/mocks/registry/(.+):(.+)`) // Regex to get repository and reference name
+
 	err := filepath.WalkDir(localRegistryPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -204,6 +252,27 @@ func findImagesFromSource(ctx context.Context, localRegistryPath string) ([]type
 				return err
 			}
 			sourceReferences = append(sourceReferences, ref)
+			desc, err := getDesc(ctx, ref)
+			if err != nil {
+				return err
+			}
+
+			matches := re.FindStringSubmatch(dirname)
+			repo := matches[1]   // Get repository name
+			imgRef := matches[2] // Get reference name
+
+			if _, ok := registryInternal[repo]; !ok {
+				registryInternal[repo] = make(map[string]*internalImage) // Create repository
+			}
+
+			img := internalImage{
+				descriptor: desc,
+				ref:        ref,
+			}
+
+			registryInternal[repo][desc.Digest.String()] = &img
+			registryInternal[repo][imgRef] = &img
+
 			return filepath.SkipDir
 		}
 		return nil
@@ -212,5 +281,16 @@ func findImagesFromSource(ctx context.Context, localRegistryPath string) ([]type
 	if err != nil {
 		return nil, err
 	}
-	return sourceReferences, nil
+	return registryInternal, nil
+}
+
+func ParseRef(ctx context.Context, ref string) (string, string, string, error) {
+	refspec, err := reference.Parse(ref)
+	if err != nil {
+		return "", "", "", err
+	}
+	host := refspec.Hostname()
+	repository := strings.TrimPrefix(refspec.Locator, host+"/")
+	object := refspec.Object
+	return host, repository, object, nil
 }
