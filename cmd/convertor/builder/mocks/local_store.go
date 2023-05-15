@@ -175,20 +175,41 @@ func (l *localRegistry) GetBlob(ctx context.Context, repository string, desc v1.
 }
 
 func (l *localRegistry) GetManifest(ctx context.Context, repository string, desc v1.Descriptor) ([]byte, error) {
-	ref := l.registryInternal[repository][desc.Digest.String()].ref
+	// If we are looking for the main manifest (In case of manifest list)
 
-	img, err := ref.NewImage(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer img.Close()
-
-	mnfst, _, err := img.Manifest(ctx)
-	if err != nil {
-		return nil, err
+	if _, ok := l.registryInternal[repository]; !ok {
+		return nil, errors.New("Repository not found")
 	}
 
-	return mnfst, nil
+	// Exact image
+	internalImg, ok := l.registryInternal[repository][desc.Digest.String()]
+	if ok {
+		img, err := internalImg.ref.NewImage(ctx, nil)
+		if err != nil {
+			return nil, err
+		}
+		defer img.Close()
+
+		mnfst, _, err := img.Manifest(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		return mnfst, nil
+	}
+	// Sub manifest in a manifest list
+	for _, subImg := range l.registryInternal[repository] {
+		mnfstSrc, err := subImg.ref.NewImageSource(ctx, nil)
+		if err != nil {
+			continue
+		}
+		mnfst, _, err := mnfstSrc.GetManifest(ctx, &desc.Digest)
+		if err != nil {
+			return nil, err
+		}
+		return mnfst, nil
+	}
+	return nil, errors.New("Manifest not found")
 }
 
 func (l *localRegistry) findDescriptorFromRef(ctx context.Context, refStr string) (v1.Descriptor, error) {
