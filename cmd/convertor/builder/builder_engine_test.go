@@ -23,7 +23,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/containerd/accelerated-container-image/cmd/convertor/builder/mocks"
+	testingresources "github.com/containerd/accelerated-container-image/cmd/convertor/testingresources"
 	"github.com/containerd/containerd/remotes"
 	"github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
@@ -37,9 +37,9 @@ func Test_builderEngineBase_isGzipLayer(t *testing.T) {
 		t.Error(err)
 	}
 
-	localRegistryPath := fmt.Sprintf("%s/mocks/registry", cwd)
+	localRegistryPath := fmt.Sprintf("%s/../testingresources/mocks/registry", cwd)
 
-	resolver, err := mocks.NewMockLocalResolver(ctx, localRegistryPath)
+	resolver, err := testingresources.NewMockLocalResolver(ctx, localRegistryPath)
 	if err != nil {
 		t.Error(err)
 	}

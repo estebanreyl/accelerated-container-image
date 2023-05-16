@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package mocks
+package testingresources
 
 import (
 	"bytes"
@@ -50,13 +50,13 @@ type MockLocalResolver struct {
 	localReg *localRegistry
 }
 
-func NewMockLocalResolver(ctx context.Context, localRegistryPath string) (MockLocalResolver, error) {
+func NewMockLocalResolver(ctx context.Context, localRegistryPath string) (*MockLocalResolver, error) {
 	reg, err := newLocalRegistry(ctx, localRegistryPath)
 	if err != nil {
-		return MockLocalResolver{}, nil
+		return nil, err
 	}
 
-	return MockLocalResolver{
+	return &MockLocalResolver{
 		localReg: reg,
 	}, nil
 }
@@ -70,7 +70,7 @@ func (r *MockLocalResolver) Resolve(ctx context.Context, ref string) (string, v1
 }
 
 func (r *MockLocalResolver) Fetcher(ctx context.Context, ref string) (remotes.Fetcher, error) {
-	_, repository, _, err := ParseRef(ctx, ref)
+	_, repository, _, err := parseRef(ctx, ref)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func (r *MockLocalResolver) Fetcher(ctx context.Context, ref string) (remotes.Fe
 }
 
 func (r *MockLocalResolver) Pusher(ctx context.Context, ref string) (remotes.Pusher, error) {
-	_, repository, _, err := ParseRef(ctx, ref)
+	_, repository, _, err := parseRef(ctx, ref)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +213,7 @@ func (l *localRegistry) GetManifest(ctx context.Context, repository string, desc
 }
 
 func (l *localRegistry) findDescriptorFromRef(ctx context.Context, refStr string) (v1.Descriptor, error) {
-	_, repository, object, err := ParseRef(ctx, refStr)
+	_, repository, object, err := parseRef(ctx, refStr)
 	if err != nil {
 		return v1.Descriptor{}, err
 	}
@@ -260,7 +260,7 @@ func findImagesFromSource(ctx context.Context, localRegistryPath string) (intern
 
 	// Repository -> Image -> (Ref + Descriptor)
 	registryInternal := make(internalRegistry)
-	re := regexp.MustCompile(`^.+builder/mocks/registry/(.+):(.+)`) // Regex to get repository and reference name
+	re := regexp.MustCompile(`^.+testingresources/mocks/registry/(.+):(.+)`) // Regex to get repository and reference name
 
 	err := filepath.WalkDir(localRegistryPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -305,7 +305,7 @@ func findImagesFromSource(ctx context.Context, localRegistryPath string) (intern
 	return registryInternal, nil
 }
 
-func ParseRef(ctx context.Context, ref string) (string, string, string, error) {
+func parseRef(ctx context.Context, ref string) (string, string, string, error) {
 	refspec, err := reference.Parse(ref)
 	if err != nil {
 		return "", "", "", err

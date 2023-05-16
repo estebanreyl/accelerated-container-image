@@ -16,185 +16,235 @@
 
 package builder
 
-// import (
-// 	"context"
-// 	"encoding/json"
-// 	"errors"
-// 	"io"
-// 	"reflect"
-// 	"strings"
-// 	"testing"
-// 	"time"
+import (
+	"context"
+	"fmt"
+	"os"
+	"reflect"
+	"testing"
 
-// 	"github.com/containerd/containerd/content"
-// 	"github.com/containerd/containerd/remotes"
-// 	"github.com/opencontainers/go-digest"
-// 	"github.com/opencontainers/image-spec/specs-go"
-// 	specs "github.com/opencontainers/image-spec/specs-go/v1"
-// 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-// 	"github.com/pkg/errors"
-// )
+	testingresources "github.com/containerd/accelerated-container-image/cmd/convertor/testingresources"
+	"github.com/containerd/containerd/images"
+	"github.com/containerd/containerd/remotes"
+	"github.com/opencontainers/go-digest"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+)
 
-// // TESTS
-// func Test_fetchManifest(t *testing.T) {
-// 	type args struct {
-// 		ctx     context.Context
-// 		fetcher remotes.Fetcher
-// 		desc    v1.Descriptor
-// 	}
-// 	tests := []struct {
-// 		name    string
-// 		args    args
-// 		want    *v1.Manifest
-// 		wantErr bool
-// 	}{
-// 		{
-// 			name: "Fetch existing manifest",
-// 			args: args{fetcher: &mockHelloWorldFetcher{}, desc: v1.Descriptor{
-// 				MediaType: helloworldManifest.MediaType,
-// 				Digest:    digest.FromString("sha256:1234567890"),
-// 				Size:      1234,
-// 			}},
-// 			want:    &helloworldManifest,
-// 			wantErr: false,
-// 		},
-// 		{
-// 			name: "Fetch unknown manifest",
-// 			args: args{fetcher: &mockHelloWorldFetcher{}, desc: v1.Descriptor{
-// 				MediaType: helloworldManifest.MediaType,
-// 				Digest:    digest.FromString("sha256:1234567890"),
-// 				Size:      1234,
-// 			}},
-// 			wantErr: true,
-// 		},
-// 		{
-// 			name: "Fetch invalid descriptor",
-// 			args: args{fetcher: &mockHelloWorldFetcher{}, desc: v1.Descriptor{
-// 				MediaType: helloworldManifest.MediaType,
-// 				Digest:    digest.FromString("sha256:1234567890"),
-// 				Size:      1234,
-// 			}},
-// 			wantErr: true,
-// 		},
-// 		{
-// 			name: "Fetch manifest with unsupported mediaType",
-// 			args: args{fetcher: &mockHelloWorldFetcher{}, desc: v1.Descriptor{
-// 				MediaType: helloworldManifest.MediaType,
-// 				Digest:    digest.FromString("sha256:1234567890"),
-// 				Size:      1234,
-// 			}},
-// 			wantErr: true,
-// 		},
-// 		{
-// 			name: "Fetch manifest list",
-// 			args: args{fetcher: &mockHelloWorldFetcher{}, desc: v1.Descriptor{
-// 				MediaType: helloworldManifest.MediaType,
-// 				Digest:    digest.FromString("sha256:1234567890"),
-// 				Size:      1234,
-// 			}},
-// 			wantErr: false,
-// 		},
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			got, err := fetchManifest(tt.args.ctx, tt.args.fetcher, tt.args.desc)
-// 			if (err != nil) != tt.wantErr {
-// 				t.Errorf("fetchManifest() error = %v, wantErr %v", err, tt.wantErr)
-// 				return
-// 			}
-// 			if !reflect.DeepEqual(got, tt.want) {
-// 				t.Errorf("fetchManifest() = %v, want %v", got, tt.want)
-// 			}
-// 		})
-// 	}
-// }
+func getResolver(t *testing.T, ctx context.Context) remotes.Resolver {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Error(err)
+	}
 
-// func Test_fetchConfig(t *testing.T) {
-// 	type args struct {
-// 		ctx     context.Context
-// 		fetcher remotes.Fetcher
-// 		desc    v1.Descriptor
-// 	}
-// 	tests := []struct {
-// 		name    string
-// 		args    args
-// 		want    *v1.Image
-// 		wantErr bool
-// 	}{
-// 		// TODO: Add test cases.
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			got, err := fetchConfig(tt.args.ctx, tt.args.fetcher, tt.args.desc)
-// 			if (err != nil) != tt.wantErr {
-// 				t.Errorf("fetchConfig() error = %v, wantErr %v", err, tt.wantErr)
-// 				return
-// 			}
-// 			if !reflect.DeepEqual(got, tt.want) {
-// 				t.Errorf("fetchConfig() = %v, want %v", got, tt.want)
-// 			}
-// 		})
-// 	}
-// }
+	localRegistryPath := fmt.Sprintf("%s/../testingresources/mocks/registry", cwd)
+	resolver, err := testingresources.NewMockLocalResolver(ctx, localRegistryPath)
+	if err != nil {
+		t.Error(err)
+	}
+	return resolver
+}
 
-// // We need a mock fetcher to fetch the manifest, config and layers of the above image
-// // Also need to mock the content store to store the layers and the utils to commit, etc
-// // Lets start by mocking the fetcher
-// var helloworldManifest v1.Manifest = v1.Manifest{
-// 	Versioned: specs.Versioned{
-// 		SchemaVersion: 2,
-// 	},
-// 	MediaType: "application/vnd.docker.distribution.manifest.v2+json",
-// 	Config: v1.Descriptor{
-// 		MediaType: "application/vnd.docker.container.image.v1+json",
-// 		Size:      1510,
-// 		Digest:    "sha256:fce289e99eb9bca977dae136fbe2a82b6b7d4c372474c9235adc1741675f587e",
-// 	},
-// 	Layers: []v1.Descriptor{
-// 		{
-// 			MediaType: "application/vnd.docker.image.rootfs.diff.tar.gzip",
-// 			Size:      977,
-// 			Digest:    "sha256:1b930d010525941c1d56ec53b97bd057a67ae1865eebf042686d2a2d18271ced",
-// 		},
-// 	},
-// }
+func getTestFetcherFromResolver(t *testing.T, ctx context.Context, resolver remotes.Resolver, ref string) remotes.Fetcher {
+	fetcher, err := resolver.Fetcher(ctx, ref)
+	if err != nil {
+		t.Error(err)
+	}
+	return fetcher
+}
 
-// // RESOLVER
-// type mockHelloWorldResolver struct{}
+// TESTS
+func Test_fetchManifest(t *testing.T) {
+	ctx := context.Background()
+	resolver := getResolver(t, ctx)
+	type args struct {
+		ctx     context.Context
+		fetcher remotes.Fetcher
+		desc    v1.Descriptor
+	}
+	tests := []struct {
+		name        string
+		args        args
+		want        *v1.Manifest
+		wantErr     bool
+		wantSubDesc v1.Descriptor
+	}{
+		{
+			name: "Fetch existing manifest",
+			args: args{
+				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest"),
+				desc: v1.Descriptor{
+					MediaType: images.MediaTypeDockerSchema2Manifest,
+					Digest:    "sha256:92c7f9c92844bbbb5d0a101b22f7c2a7949e40f8ea90c8b3bc396879d95e899a",
+					Size:      524,
+				},
+				ctx: ctx,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Fetch manifest List",
+			args: args{
+				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/redis:alpine3.18"),
+				desc: v1.Descriptor{
+					MediaType: images.MediaTypeDockerSchema2ManifestList,
+					Digest:    "sha256:7bea1298286d063ed53cb52f3eaf4e70574269b7c0fe2b8f85ea699497e9cba6",
+					Size:      2584,
+				},
+				ctx: ctx,
+			},
+			// The manifest list is expected to select the first manifest that can be converted
+			// in the list, for this image that is the very first one.
+			wantSubDesc: v1.Descriptor{
+				MediaType: images.MediaTypeDockerSchema2Manifest,
+				Digest:    "sha256:e20345b7ec692815860c07f0209eb0465687b0c28cd85df412811ae1ac7b653e",
+				Size:      1571,
+				Platform: &v1.Platform{
+					Architecture: "amd64",
+					OS:           "linux",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Fetch unknown manifest errors",
+			args: args{
+				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest"),
+				desc: v1.Descriptor{
+					MediaType: images.MediaTypeDockerSchema2Manifest,
+					Digest:    "sha256:82c7f9c92844bbab5d0a101b12f7c2a7949e40f8ee90c8b3bc396879d95e899a",
+					Size:      524,
+				},
+				ctx: ctx,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Fetch invalid digest",
+			args: args{
+				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest"),
+				desc: v1.Descriptor{
+					MediaType: images.MediaTypeDockerSchema2Manifest,
+					Digest:    "sha256:829d95e899a",
+					Size:      524,
+				},
+				ctx: ctx,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Fetch manifest with unsupported mediaType (docker v1)",
+			args: args{
+				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest"),
+				desc: v1.Descriptor{
+					MediaType: images.MediaTypeDockerSchema1Manifest,
+					Digest:    "sha256:82c7f9c92844bbab5d0a101b12f7c2a7949e40f8ee90c8b3bc396879d95e899a",
+					Size:      524,
+				},
+				ctx: ctx,
+			},
+			wantErr: true,
+		},
+	}
 
-// func (r *mockHelloWorldResolver) Resolve(ctx context.Context, ref string) (string, v1.Descriptor, error) {
-// 	content, _ := json.MarshalIndent(helloworldManifest, "", "  ")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			manifest, err := fetchManifest(tt.args.ctx, tt.args.fetcher, tt.args.desc)
+			if (err == nil) && tt.wantErr {
+				t.Error("fetchManifest() error was expected but no error was returned")
+			}
+			if err != nil {
+				if !tt.wantErr {
+					t.Errorf("fetchManifest() unexpectedly returned error %v", err)
+				}
+				return
+			}
+			content, err := testingresources.ConsistentManifestMarshal(manifest)
+			if err != nil {
+				t.Errorf("Could not parse obtained manifest, got: %v", err)
+			}
 
-// 	return "", v1.Descriptor{
-// 		MediaType: helloworldManifest.MediaType,
-// 		Digest:    digest.FromBytes(content),
-// 		Size:      int64(len(content)),
-// 	}, nil
-// }
+			contentDigest := digest.FromBytes(content)
 
-// func (r *mockHelloWorldResolver) Fetcher(ctx context.Context, ref string) (remotes.Fetcher, error) {
-// 	return &mockHelloWorldFetcher{}, nil
-// }
+			if tt.args.desc.MediaType != images.MediaTypeDockerSchema2ManifestList &&
+				tt.args.desc.MediaType != v1.MediaTypeImageIndex {
 
-// func (r *mockHelloWorldResolver) Pusher(ctx context.Context, ref string) (remotes.Pusher, error) {
-// 	return &mockHelloWorldPusher{}, nil
-// }
+				if tt.args.desc.Digest != contentDigest {
+					t.Errorf("fetchManifest() = %v, want %v", manifest, tt.want)
+				}
+			} else {
+				if tt.wantSubDesc.Digest != contentDigest {
+					t.Errorf("fetchManifest() = %v, want %v", manifest, tt.want)
+				}
+			}
+		})
+	}
+}
 
-// // FETCHER
-// type mockHelloWorldFetcher struct{}
+func Test_fetchConfig(t *testing.T) {
+	ctx := context.Background()
+	resolver := getResolver(t, ctx)
 
-// func (f *mockHelloWorldFetcher) Fetch(ctx context.Context, desc v1.Descriptor) (io.ReadCloser, error) {
-// 	return io.NopCloser(strings.NewReader("")), nil
-// }
-
-// // PUSHER
-// type mockHelloWorldPusher struct{}
-
-// // Not used by overlaybd conversion
-// func (p mockHelloWorldPusher) Writer(ctx context.Context, opts ...content.WriterOpt) (content.Writer, error) {
-// 	return nil, errors.New("Not implemented")
-// }
-
-// func (p mockHelloWorldPusher) Push(ctx context.Context, desc v1.Descriptor) (content.Writer, error) {
-// 	return nil, errors.New("Not implemented")
-// }
+	type args struct {
+		ctx     context.Context
+		fetcher remotes.Fetcher
+		desc    v1.Descriptor
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *v1.Image
+		wantErr bool
+	}{
+		{
+			name: "Fetch Config with supported mediaType (docker v2)",
+			args: args{
+				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest"),
+				desc: v1.Descriptor{
+					MediaType: images.MediaTypeDockerSchema2Config,
+					Digest:    "sha256:82c7f9c92844bbab5d0a101b12f7c2a7949e40f8ee90c8b3bc396879d95e899a",
+					Size:      524,
+				},
+				ctx: ctx,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Fetch Config with supported mediaType (oci)",
+			args: args{
+				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest"),
+				desc: v1.Descriptor{
+					MediaType: v1.MediaTypeImageConfig,
+					Digest:    "sha256:82c7f9c92844bbab5d0a101b12f7c2a7949e40f8ee90c8b3bc396879d95e899a",
+					Size:      524,
+				},
+				ctx: ctx,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Fetch unknown config",
+			args: args{
+				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest"),
+				desc: v1.Descriptor{
+					MediaType: images.MediaTypeDockerSchema1Manifest,
+					Digest:    "sha256:82c7f9c92844bbab5d0a101b12f7c2a7949e40f8ee90c8b3bc396879d95e899a",
+					Size:      524,
+				},
+				ctx: ctx,
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := fetchConfig(tt.args.ctx, tt.args.fetcher, tt.args.desc)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("fetchConfig() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("fetchConfig() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
