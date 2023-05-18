@@ -201,8 +201,8 @@ func Test_fetchConfig(t *testing.T) {
 				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest"),
 				desc: v1.Descriptor{
 					MediaType: images.MediaTypeDockerSchema2Config,
-					Digest:    "sha256:82c7f9c92844bbab5d0a101b12f7c2a7949e40f8ee90c8b3bc396879d95e899a",
-					Size:      524,
+					Digest:    "sha256:fce289e99eb9bca977dae136fbe2a82b6b7d4c372474c9235adc1741675f587e",
+					Size:      1510,
 				},
 				ctx: ctx,
 			},
