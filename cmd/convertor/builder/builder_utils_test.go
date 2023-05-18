@@ -56,6 +56,8 @@ func getTestFetcherFromResolver(t *testing.T, ctx context.Context, resolver remo
 func Test_fetchManifest(t *testing.T) {
 	ctx := context.Background()
 	resolver := getResolver(t, ctx)
+	_, desc, _ := resolver.Resolve(ctx, testingresources.Docker_Manifest_List_Ref)
+	fmt.Println(desc)
 	type args struct {
 		ctx     context.Context
 		fetcher remotes.Fetcher

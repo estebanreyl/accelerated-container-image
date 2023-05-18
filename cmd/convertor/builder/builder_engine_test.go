@@ -96,7 +96,7 @@ func Test_builderEngineBase_isGzipLayer(t *testing.T) {
 		// Uncompressed Layer Type
 		{
 			name:   "Valid Gzip Layer",
-			fields: getFields(ctx, "sample.localstore.io/hello-world:latest"),
+			fields: getFields(ctx, testingresources.DockerV2_Manifest_Simple_Ref),
 			args: args{
 				ctx: ctx,
 				idx: 0,
@@ -107,7 +107,7 @@ func Test_builderEngineBase_isGzipLayer(t *testing.T) {
 		{
 			name: "Layer Not Found",
 			fields: func() fields {
-				fields := getFields(ctx, "sample.localstore.io/hello-world:latest")
+				fields := getFields(ctx, testingresources.DockerV2_Manifest_Simple_Ref)
 				fields.manifest.Layers[0].Digest = digest.FromString("sample")
 				return fields
 			}(),
