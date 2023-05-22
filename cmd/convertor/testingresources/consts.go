@@ -38,22 +38,23 @@ adding and downloading images.
 const (
 	// MINIMAL MANIFESTS (For unit testing)
 	// DOCKER V2 (amd64)
-	DockerV2_Manifest_Simple_Ref           = "sample.localstore.io/hello-world:docker-v2"
+	DockerV2_Manifest_Simple_Ref           = "sample.localstore.io/hello-world:amd64"
 	DockerV2_Manifest_Simple_Digest        = "sha256:7e9b6e7ba2842c91cf49f3e214d04a7a496f8214356f41d81a6e6dcad11f11e3"
-	DockerV2_Manifest_Simple_Config_Digest = ""
+	DockerV2_Manifest_Simple_Config_Digest = "sha256:9c7a54a9a43cca047013b82af109fe963fde787f63f9e016fdc3384500c2823d"
 
 	// DOCKER MANIFEST LIST
 	Docker_Manifest_List_Ref    = "sample.localstore.io/hello-world:docker-list"
-	Docker_Manifest_List_Digest = "sha256:24e4332b804bf0d6424771960c37ba6f9c89a3fe95b4db58da606e85a7492c54"
+	Docker_Manifest_List_Digest = "sha256:726023f73a8fc5103fa6776d48090539042cb822531c6b751b1f6dd18cb5705d"
 
+	// TODO
 	// OCI
 	OCI_Manifest_Simple_Ref           = "sample.localstore.io/hello-world:oci"
-	OCI_Manifest_Simple_Digest        = "sha256:374226e56fadb2056b3eef9792c9ff137546313aa46a2b224b2fa0ae4cff1a59"
+	OCI_Manifest_Simple_Digest        = ""
 	OCI_Manifest_Simple_Config_Digest = ""
 
 	// Index
 	OCI_Manifest_Index_Ref    = "sample.localstore.io/hello-world:oci-index"
-	OCI_Manifest_Index_Digest = "sha256:b481723894b544ed44c85a7170cdea836f6c551a2f21ff51dd64c0a7278b8f82"
+	OCI_Manifest_Index_Digest = ""
 )
 
 // ParseRef Parses a ref into its components: host, repository, tag/digest

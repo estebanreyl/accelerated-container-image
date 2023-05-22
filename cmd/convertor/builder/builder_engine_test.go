@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"testing"
 
 	testingresources "github.com/containerd/accelerated-container-image/cmd/convertor/testingresources"
@@ -32,17 +31,7 @@ import (
 
 func Test_builderEngineBase_isGzipLayer(t *testing.T) {
 	ctx := context.Background()
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Error(err)
-	}
-
-	localRegistryPath := fmt.Sprintf("%s/../testingresources/mocks/registry", cwd)
-
-	resolver, err := testingresources.NewMockLocalResolver(ctx, localRegistryPath)
-	if err != nil {
-		t.Error(err)
-	}
+	resolver := testingresources.GetTestResolver(t, ctx)
 
 	type fields struct {
 		fetcher  remotes.Fetcher
@@ -135,4 +124,34 @@ func Test_builderEngineBase_isGzipLayer(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_getBuilderEngineBase(t *testing.T) {
+	resolver := testingresources.GetTestResolver(t, context.Background())
+	engine, err := getBuilderEngineBase(context.TODO(),
+		resolver,
+		testingresources.DockerV2_Manifest_Simple_Ref,
+		fmt.Sprintf("%s-obd", testingresources.DockerV2_Manifest_Simple_Ref),
+	)
+	if err != nil {
+		t.Error(err)
+	}
+
+	testingresources.Assert(t, engine.fetcher != nil, "Fetcher is nil")
+	testingresources.Assert(t, engine.pusher != nil, "Pusher is nil")
+	testingresources.Assert(t,
+		engine.manifest.Config.Digest == testingresources.DockerV2_Manifest_Simple_Config_Digest,
+		fmt.Sprintf("Config Digest is not equal to %s", testingresources.DockerV2_Manifest_Simple_Config_Digest))
+
+	content, err := testingresources.ConsistentManifestMarshal(&engine.manifest)
+	if err != nil {
+		t.Errorf("Could not parse obtained manifest, got: %v", err)
+	}
+
+	testingresources.Assert(t,
+		digest.FromBytes(content) == testingresources.DockerV2_Manifest_Simple_Digest,
+		fmt.Sprintf("Manifest Digest is not equal to %s", testingresources.DockerV2_Manifest_Simple_Digest))
+}
+
+func Test_uploadManifestAndConfig(t *testing.T) {
 }

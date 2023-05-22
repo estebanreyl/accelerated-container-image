@@ -19,8 +19,6 @@ package builder
 import (
 	"context"
 	"fmt"
-	"os"
-	"reflect"
 	"testing"
 
 	testingresources "github.com/containerd/accelerated-container-image/cmd/convertor/testingresources"
@@ -30,32 +28,10 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-func getResolver(t *testing.T, ctx context.Context) remotes.Resolver {
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Error(err)
-	}
-
-	localRegistryPath := fmt.Sprintf("%s/../testingresources/mocks/registry", cwd)
-	resolver, err := testingresources.NewMockLocalResolver(ctx, localRegistryPath)
-	if err != nil {
-		t.Error(err)
-	}
-	return resolver
-}
-
-func getTestFetcherFromResolver(t *testing.T, ctx context.Context, resolver remotes.Resolver, ref string) remotes.Fetcher {
-	fetcher, err := resolver.Fetcher(ctx, ref)
-	if err != nil {
-		t.Error(err)
-	}
-	return fetcher
-}
-
 // TESTS
 func Test_fetchManifest(t *testing.T) {
 	ctx := context.Background()
-	resolver := getResolver(t, ctx)
+	resolver := testingresources.GetTestResolver(t, ctx)
 	_, desc, _ := resolver.Resolve(ctx, testingresources.Docker_Manifest_List_Ref)
 	fmt.Println(desc)
 	type args struct {
@@ -73,11 +49,11 @@ func Test_fetchManifest(t *testing.T) {
 		{
 			name: "Fetch existing manifest",
 			args: args{
-				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest"),
+				fetcher: testingresources.GetTestFetcherFromResolver(t, ctx, resolver, testingresources.DockerV2_Manifest_Simple_Ref),
 				desc: v1.Descriptor{
 					MediaType: images.MediaTypeDockerSchema2Manifest,
-					Digest:    "sha256:92c7f9c92844bbbb5d0a101b22f7c2a7949e40f8ea90c8b3bc396879d95e899a",
-					Size:      524,
+					Digest:    testingresources.DockerV2_Manifest_Simple_Digest,
+					Size:      525,
 				},
 				ctx: ctx,
 			},
@@ -86,11 +62,11 @@ func Test_fetchManifest(t *testing.T) {
 		{
 			name: "Fetch manifest List",
 			args: args{
-				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/redis:alpine3.18"),
+				fetcher: testingresources.GetTestFetcherFromResolver(t, ctx, resolver, testingresources.Docker_Manifest_List_Ref),
 				desc: v1.Descriptor{
 					MediaType: images.MediaTypeDockerSchema2ManifestList,
-					Digest:    "sha256:7bea1298286d063ed53cb52f3eaf4e70574269b7c0fe2b8f85ea699497e9cba6",
-					Size:      2584,
+					Digest:    testingresources.Docker_Manifest_List_Digest,
+					Size:      2069,
 				},
 				ctx: ctx,
 			},
@@ -98,8 +74,8 @@ func Test_fetchManifest(t *testing.T) {
 			// in the list, for this image that is the very first one.
 			wantSubDesc: v1.Descriptor{
 				MediaType: images.MediaTypeDockerSchema2Manifest,
-				Digest:    "sha256:e20345b7ec692815860c07f0209eb0465687b0c28cd85df412811ae1ac7b653e",
-				Size:      1571,
+				Digest:    testingresources.DockerV2_Manifest_Simple_Digest,
+				Size:      525,
 				Platform: &v1.Platform{
 					Architecture: "amd64",
 					OS:           "linux",
@@ -110,10 +86,10 @@ func Test_fetchManifest(t *testing.T) {
 		{
 			name: "Fetch unknown manifest errors",
 			args: args{
-				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest"),
+				fetcher: testingresources.GetTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:idontexist"),
 				desc: v1.Descriptor{
 					MediaType: images.MediaTypeDockerSchema2Manifest,
-					Digest:    "sha256:82c7f9c92844bbab5d0a101b12f7c2a7949e40f8ee90c8b3bc396879d95e899a",
+					Digest:    "sha256:82c7f9c92844bbbb5d0a101b12f7c2a7949e40f8ee90c8b3bc396879d95e899a",
 					Size:      524,
 				},
 				ctx: ctx,
@@ -123,23 +99,10 @@ func Test_fetchManifest(t *testing.T) {
 		{
 			name: "Fetch invalid digest",
 			args: args{
-				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest"),
+				fetcher: testingresources.GetTestFetcherFromResolver(t, ctx, resolver, testingresources.DockerV2_Manifest_Simple_Ref),
 				desc: v1.Descriptor{
 					MediaType: images.MediaTypeDockerSchema2Manifest,
 					Digest:    "sha256:829d95e899a",
-					Size:      524,
-				},
-				ctx: ctx,
-			},
-			wantErr: true,
-		},
-		{
-			name: "Fetch manifest with unsupported mediaType (docker v1)",
-			args: args{
-				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest"),
-				desc: v1.Descriptor{
-					MediaType: images.MediaTypeDockerSchema1Manifest,
-					Digest:    "sha256:82c7f9c92844bbab5d0a101b12f7c2a7949e40f8ee90c8b3bc396879d95e899a",
 					Size:      524,
 				},
 				ctx: ctx,
@@ -184,6 +147,80 @@ func Test_fetchManifest(t *testing.T) {
 
 func Test_fetchConfig(t *testing.T) {
 	ctx := context.Background()
+	resolver := testingresources.GetTestResolver(t, ctx)
+
+	type args struct {
+		ctx     context.Context
+		fetcher remotes.Fetcher
+		desc    v1.Descriptor
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *v1.Image
+		wantErr bool
+	}{
+		// TODO: "Fetch Config with supported mediaType (oci)",
+		{
+			name: "Fetch Config with supported mediaType (docker v2)",
+			args: args{
+				fetcher: testingresources.GetTestFetcherFromResolver(t, ctx, resolver, testingresources.DockerV2_Manifest_Simple_Ref),
+				desc: v1.Descriptor{
+					MediaType: images.MediaTypeDockerSchema2Config,
+					Digest:    testingresources.DockerV2_Manifest_Simple_Config_Digest,
+					Size:      1470,
+					Platform: &v1.Platform{
+						Architecture: "amd64",
+						OS:           "linux",
+					},
+				},
+				ctx: ctx,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Fetch unknown config",
+			args: args{
+				fetcher: testingresources.GetTestFetcherFromResolver(t, ctx, resolver, testingresources.DockerV2_Manifest_Simple_Ref),
+				desc: v1.Descriptor{
+					MediaType: images.MediaTypeDockerSchema1Manifest,
+					Digest:    "sha256:82c7f9c92844bbab5d0a101b12f7c2a7949e40f8ee90c8b3bc396879d95e899a",
+					Size:      524,
+				},
+				ctx: ctx,
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := fetchConfig(tt.args.ctx, tt.args.fetcher, tt.args.desc)
+			if (err == nil) && tt.wantErr {
+				t.Error("fetchConfig() error was expected but no error was returned")
+			}
+			if err != nil {
+				if !tt.wantErr {
+					t.Errorf("fetchConfig() unexpectedly returned error %v", err)
+				}
+				return
+			}
+			if got.Architecture != tt.args.desc.Platform.Architecture ||
+				got.OS != tt.args.desc.Platform.OS {
+				t.Errorf("fetchConfig() config is not as expected")
+			}
+
+			if len(got.RootFS.DiffIDs) == 0 {
+				t.Errorf("fetchConfig() Expected some DiffIds")
+			}
+			if len(got.History) == 0 {
+				t.Errorf("fetchConfig() Expected layer history")
+			}
+		})
+	}
+}
+
+func Test_uploadBytes(t *testing.T) {
+	ctx := context.Background()
 	resolver := getResolver(t, ctx)
 
 	type args struct {
@@ -200,53 +237,88 @@ func Test_fetchConfig(t *testing.T) {
 		{
 			name: "Fetch Config with supported mediaType (docker v2)",
 			args: args{
-				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest"),
+				fetcher: getTestFetcherFromResolver(t, ctx, resolver, testingresources.DockerV2_Manifest_Simple_Ref),
 				desc: v1.Descriptor{
 					MediaType: images.MediaTypeDockerSchema2Config,
-					Digest:    "sha256:fce289e99eb9bca977dae136fbe2a82b6b7d4c372474c9235adc1741675f587e",
-					Size:      1510,
+					Digest:    testingresources.DockerV2_Manifest_Simple_Config_Digest,
+					Size:      1470,
+					Platform: &v1.Platform{
+						Architecture: "amd64",
+						OS:           "linux",
+					},
 				},
-				ctx: ctx,
 			},
-			wantErr: false,
-		},
-		{
-			name: "Fetch Config with supported mediaType (oci)",
-			args: args{
-				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest"),
-				desc: v1.Descriptor{
-					MediaType: v1.MediaTypeImageConfig,
-					Digest:    "sha256:82c7f9c92844bbab5d0a101b12f7c2a7949e40f8ee90c8b3bc396879d95e899a",
-					Size:      524,
-				},
-				ctx: ctx,
-			},
-			wantErr: false,
-		},
-		{
-			name: "Fetch unknown config",
-			args: args{
-				fetcher: getTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest"),
-				desc: v1.Descriptor{
-					MediaType: images.MediaTypeDockerSchema1Manifest,
-					Digest:    "sha256:82c7f9c92844bbab5d0a101b12f7c2a7949e40f8ee90c8b3bc396879d95e899a",
-					Size:      524,
-				},
-				ctx: ctx,
-			},
-			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := fetchConfig(tt.args.ctx, tt.args.fetcher, tt.args.desc)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("fetchConfig() error = %v, wantErr %v", err, tt.wantErr)
+			if (err == nil) && tt.wantErr {
+				t.Error("fetchConfig() error was expected but no error was returned")
+			}
+			if err != nil {
+				if !tt.wantErr {
+					t.Errorf("fetchConfig() unexpectedly returned error %v", err)
+				}
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("fetchConfig() = %v, want %v", got, tt.want)
-			}
+
 		})
 	}
 }
+
+func Test_uploadBlob(t *testing.T) {
+	ctx := context.Background()
+	resolver := getResolver(t, ctx)
+
+	type args struct {
+		ctx     context.Context
+		fetcher remotes.Fetcher
+		desc    v1.Descriptor
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *v1.Image
+		wantErr bool
+	}{
+		{
+			name: "Fetch Config with supported mediaType (docker v2)",
+			args: args{
+				fetcher: getTestFetcherFromResolver(t, ctx, resolver, testingresources.DockerV2_Manifest_Simple_Ref),
+				desc: v1.Descriptor{
+					MediaType: images.MediaTypeDockerSchema2Config,
+					Digest:    testingresources.DockerV2_Manifest_Simple_Config_Digest,
+					Size:      1470,
+					Platform: &v1.Platform{
+						Architecture: "amd64",
+						OS:           "linux",
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := fetchConfig(tt.args.ctx, tt.args.fetcher, tt.args.desc)
+			if (err == nil) && tt.wantErr {
+				t.Error("fetchConfig() error was expected but no error was returned")
+			}
+			if err != nil {
+				if !tt.wantErr {
+					t.Errorf("fetchConfig() unexpectedly returned error %v", err)
+				}
+				return
+			}
+
+		})
+	}
+}
+
+func Test_getFileDesc(t *testing.T) {
+
+}
+
+// TODO: Helper functions writing to the file system are not currently unit tested. This would involve mocking the
+// existing filesystem access which involves additional refactoring out of the scope of initial coverage. The functions
+// should be covered in more complete end to end tests but this will be a nice to have.

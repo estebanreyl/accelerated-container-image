@@ -18,14 +18,14 @@ Its probably better to add some form of integration tests instead as this is qui
 # builder_engine
  3 functions to test
  - uploadManifestAndConfig
- - getBuilderEngineBase
- - isGzipLayer
+ - getBuilderEngineBase -- Done
+ - isGzipLayer -- Started
  All three seem straightforward but do require some level of mocking
 
 # builder_utils -> Start with this one
-- fetch -> Mock fetcher, seems simple enough
-- fetchManifest -> Mock fetcher , return both list and manifest type
-- fetchConfig -> Mock fetcher with returning config
+- fetch -> Mock fetcher, seems simple enough - Covered by fetchManifest and fetchConfig
+- fetchManifest -> Mock fetcher , return both list and manifest type - Started
+- fetchConfig -> Mock fetcher with returning config - Started
 - downloadLayer -> Actually creates a folder, probably not unit testable
 - writeConfig -> Writes file not really unit testable
 - getFileDesc -> More io, not unit testable
