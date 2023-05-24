@@ -25,6 +25,7 @@ import (
 
 	testingresources "github.com/containerd/accelerated-container-image/cmd/convertor/testingresources"
 	"github.com/containerd/containerd/images"
+	_ "github.com/containerd/containerd/pkg/testutil" // Handle custom root flag
 	"github.com/containerd/containerd/remotes"
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -324,8 +325,8 @@ func Test_getFileDesc(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		testingresources.Assert(t, desc.Digest.String() != expectedDigest, "getFileDesc() wrong digest returned")
-		testingresources.Assert(t, desc.Size != expectedSize, "getFileDesc() wrong size returned")
+		testingresources.Assert(t, desc.Digest.String() == expectedDigest, "getFileDesc() wrong digest returned")
+		testingresources.Assert(t, desc.Size == expectedSize, "getFileDesc() wrong size returned")
 	}
 	blobPath := path.Join(testingresources.GetLocalRegistryPath(), "hello-world", "blobs", "sha256")
 

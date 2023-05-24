@@ -21,102 +21,109 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+	"time"
 
+	_ "github.com/containerd/containerd/pkg/testutil" // Handle custom root flag
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
-	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-type mockBuilder struct {
-	layers int
-	config v1.Image
-	engine builderEngine
-}
+// Test_builder_Err_Fuzz_Build This test is for the arguably complex error handling and potential go routine
+// locking that can happen for the builder component. It works by testing multiple potential error patterns
+// across all stages of the process (Through consistent pseudo random generation, for reproducibility and
+// ease of adjustment). The test is designed to run in parallel to maximize the chance of a contention.
+func Test_builder_Err_Fuzz_Build(t *testing.T) {
+	// If timeout of 1 second is exceeded with the mock fuz builder engine
+	// then there is a high likelihood of a present contention error
+	contentionTimeout := time.Second * 1
+	patternCount := int64(500) // Try out 500 different seeds
 
-func Test_overlaybdBuilder_Build(t *testing.T) {
-	type fields struct {
-		layers int
-		config v1.Image
-		engine builderEngine
-	}
-	type args struct {
-		ctx context.Context
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	var i int64
+	for i = 0; i < patternCount; i++ {
+		seed := i
+		t.Run(fmt.Sprintf("Test_builder_Err_Lock Contention Seed %d", i), func(t *testing.T) {
+			t.Parallel()
+			fixedRand := rand.New(rand.NewSource(seed))
+			builderEngine := newMockBuilderEngine(fixedRand)
 			b := &overlaybdBuilder{
-				layers: tt.fields.layers,
-				config: tt.fields.config,
-				engine: tt.fields.engine,
+				engine: builderEngine,
+				layers: 25,
 			}
-			if err := b.Build(tt.args.ctx); (err != nil) != tt.wantErr {
-				t.Errorf("overlaybdBuilder.Build() error = %v, wantErr %v", err, tt.wantErr)
+			ctx, cancel := context.WithTimeout(context.Background(), contentionTimeout)
+			defer cancel()
+
+			b.Build(ctx)
+			// Build will typically return an error but completes successfully for some seeds as well
+			if ctx.Err() != nil {
+				if ctx.Err() == context.DeadlineExceeded {
+					t.Errorf("Context deadline was exceeded, likely contention error")
+				}
 			}
 		})
 	}
 }
 
-type mockBuilderEngine struct{}
+const (
+	failRate = 0.05 // 5% of the time, fail any given operation
+)
 
-func NewmockBuilderEngine() builderEngine {
-	return &mockBuilderEngine{}
+type mockFuzzBuilderEngine struct {
+	fixedRand *rand.Rand
 }
 
-func (e *mockBuilderEngine) DownloadLayer(ctx context.Context, idx int) error {
-	if rand.Float64() < 0.3 {
+func newMockBuilderEngine(fixedRand *rand.Rand) builderEngine {
+	return &mockFuzzBuilderEngine{
+		fixedRand: fixedRand,
+	}
+}
+
+func (e *mockFuzzBuilderEngine) DownloadLayer(ctx context.Context, idx int) error {
+	if e.fixedRand.Float64() < failRate {
 		return fmt.Errorf("random error on download")
 	}
 	return nil
 }
 
-func (e *mockBuilderEngine) BuildLayer(ctx context.Context, idx int) error {
-	if rand.Float64() < 0.3 {
-		return fmt.Errorf("random error on download")
+func (e *mockFuzzBuilderEngine) BuildLayer(ctx context.Context, idx int) error {
+	if e.fixedRand.Float64() < failRate {
+		return fmt.Errorf("random error on BuildLayer")
 	}
 	return nil
 }
 
-func (e *mockBuilderEngine) UploadLayer(ctx context.Context, idx int) error {
-	if rand.Float64() < 0.3 {
-		return fmt.Errorf("random error on download")
+func (e *mockFuzzBuilderEngine) UploadLayer(ctx context.Context, idx int) error {
+	if e.fixedRand.Float64() < failRate {
+		return fmt.Errorf("random error on UploadLayer")
 	}
 	return nil
 }
 
-func (e *mockBuilderEngine) UploadImage(ctx context.Context) error {
-	if rand.Float64() < 0.3 {
-		return fmt.Errorf("random error on download")
+func (e *mockFuzzBuilderEngine) UploadImage(ctx context.Context) error {
+	if e.fixedRand.Float64() < failRate {
+		return fmt.Errorf("random error on UploadImage")
 	}
 	return nil
 }
 
-func (e *mockBuilderEngine) CheckForConvertedLayer(ctx context.Context, idx int) (specs.Descriptor, error) {
-	if rand.Float64() < 0.3 {
-		return specs.Descriptor{}, fmt.Errorf("random error on download")
+func (e *mockFuzzBuilderEngine) CheckForConvertedLayer(ctx context.Context, idx int) (specs.Descriptor, error) {
+	if e.fixedRand.Float64() < failRate {
+		return specs.Descriptor{}, fmt.Errorf("random error on CheckForConvertedLayer")
 	}
 	return specs.Descriptor{}, nil
 }
 
-func (e *mockBuilderEngine) StoreConvertedLayerDetails(ctx context.Context, idx int) error {
-	if rand.Float64() < 0.3 {
-		return fmt.Errorf("random error on download")
+func (e *mockFuzzBuilderEngine) StoreConvertedLayerDetails(ctx context.Context, idx int) error {
+	if e.fixedRand.Float64() < failRate {
+		return fmt.Errorf("random error on StoreConvertedLayerDetails")
 	}
 	return nil
 }
 
-func (e *mockBuilderEngine) DownloadConvertedLayer(ctx context.Context, idx int, desc specs.Descriptor) error {
-	if rand.Float64() < 0.3 {
-		return fmt.Errorf("random error on download")
+func (e *mockFuzzBuilderEngine) DownloadConvertedLayer(ctx context.Context, idx int, desc specs.Descriptor) error {
+	if e.fixedRand.Float64() < failRate {
+		return fmt.Errorf("random error on DownloadConvertedLayer")
 	}
 	return nil
 }
 
-func (e *mockBuilderEngine) Cleanup() {
+func (e *mockFuzzBuilderEngine) Cleanup() {
 }

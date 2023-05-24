@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	testingresources "github.com/containerd/accelerated-container-image/cmd/convertor/testingresources"
+	_ "github.com/containerd/containerd/pkg/testutil" // Handle custom root flag
 	"github.com/containerd/containerd/remotes"
 	"github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
