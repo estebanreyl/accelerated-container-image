@@ -17,10 +17,16 @@ limitations under the License.
 package testingresources
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/images"
+	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2/content/oci"
 )
@@ -34,8 +40,27 @@ type RepoStore struct {
 }
 
 type inmemoryRepo struct {
+	blobs map[string][]byte
+	tags  map[string]digest.Digest
 }
 
+// NewRepoStore creates a new repo store. Path provides the filesystem path to the OCI layout store. The
+// inmemory component is initialized with an empty store. Both components work together to provide a
+// unified view of the repository.
+func NewRepoStore(ctx context.Context, path string, opts *RegistryOptions) *RepoStore {
+	inmemoryRepo := &inmemoryRepo{
+		blobs: make(map[string][]byte),
+		tags:  make(map[string]digest.Digest),
+	}
+
+	return &RepoStore{
+		path:         path,
+		opts:         opts,
+		inmemoryRepo: inmemoryRepo,
+	}
+}
+
+// LoadStore loads the OCI layout store from the provided path
 func (r *RepoStore) LoadStore(ctx context.Context) error {
 	// File Store is already initialized
 	if r.fileStore != nil {
@@ -60,7 +85,20 @@ func (r *RepoStore) LoadStore(ctx context.Context) error {
 	return nil
 }
 
+// Resolve resolves a tag to a descriptor
 func (r *RepoStore) Resolve(ctx context.Context, tag string) (v1.Descriptor, error) {
+	if digest, ok := r.inmemoryRepo.tags[tag]; ok {
+		if blob, ok := r.inmemoryRepo.blobs[digest.String()]; ok {
+			parsedManifest := v1.Manifest{}
+			json.Unmarshal(blob, &parsedManifest)
+			return v1.Descriptor{
+				Digest:    digest,
+				Size:      int64(len(blob)),
+				MediaType: parsedManifest.MediaType,
+			}, nil
+		}
+	}
+
 	if !r.opts.InmemoryOnly {
 		if err := r.LoadStore(ctx); err != nil {
 			return v1.Descriptor{}, err
@@ -68,16 +106,105 @@ func (r *RepoStore) Resolve(ctx context.Context, tag string) (v1.Descriptor, err
 
 		return r.fileStore.Resolve(ctx, tag)
 	}
-	return v1.Descriptor{}, errors.New("Content not found")
+	return v1.Descriptor{}, errdefs.ErrNotFound
 }
 
+// Fetch fetches a blob from the repository
 func (r *RepoStore) Fetch(ctx context.Context, descriptor v1.Descriptor) (io.ReadCloser, error) {
+	if blob, ok := r.inmemoryRepo.blobs[descriptor.Digest.String()]; ok {
+		return io.NopCloser(bytes.NewReader(blob)), nil
+	}
+
 	if !r.opts.InmemoryOnly {
 		if err := r.LoadStore(ctx); err != nil {
 			return nil, err
 		}
 
-		return r.fileStore.Fetch(ctx, descriptor)
+		content, err := r.fileStore.Fetch(ctx, descriptor)
+
+		if err != nil {
+			return nil, err
+		}
+		return content, nil
 	}
-	return nil, errors.New("Content not found")
+	return nil, errdefs.ErrNotFound
+}
+
+// Exists checks if a blob exists in the repository
+func (r *RepoStore) Exists(ctx context.Context, descriptor v1.Descriptor) (bool, error) {
+	if _, ok := r.inmemoryRepo.blobs[descriptor.Digest.String()]; ok {
+		return true, nil
+	}
+
+	if !r.opts.InmemoryOnly {
+		if err := r.LoadStore(ctx); err != nil {
+			return false, err
+		}
+
+		exists, err := r.fileStore.Exists(ctx, descriptor)
+
+		if err != nil {
+			return false, err
+		}
+
+		if exists {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// Push pushes a blob to the in memory repository. If the blob already exists, it returns an error.
+// Tag is optional and can be empty.
+func (r *RepoStore) Push(ctx context.Context, desc v1.Descriptor, tag string, content []byte) error {
+	exists, err := r.Exists(ctx, desc)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil // No error is returned on push if image is already present
+	}
+	isManifest := false
+	switch desc.MediaType {
+	case v1.MediaTypeImageManifest, images.MediaTypeDockerSchema2Manifest:
+		isManifest = true
+		if r.opts.ManifestPushIgnoresLayers {
+			break // No layer verification necessary
+		}
+		manifest := v1.Manifest{}
+		json.Unmarshal(content, &manifest)
+		for _, layer := range manifest.Layers {
+			exists, err := r.Exists(ctx, layer)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				return fmt.Errorf("Layer %s not found", layer.Digest.String())
+			}
+		}
+	case v1.MediaTypeImageIndex, images.MediaTypeDockerSchema2ManifestList:
+		isManifest = true
+		if r.opts.ManifestPushIgnoresLayers {
+			break // No manifest verification necessary
+		}
+		manifestList := v1.Index{}
+		json.Unmarshal(content, &manifestList)
+		for _, subManifestDesc := range manifestList.Manifests {
+			exists, err := r.Exists(ctx, subManifestDesc)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				return fmt.Errorf("Sub manifest %s not found", subManifestDesc.Digest.String())
+			}
+		}
+	}
+	r.inmemoryRepo.blobs[desc.Digest.String()] = content
+
+	if isManifest && tag != "" {
+		r.inmemoryRepo.tags[tag] = desc.Digest
+	}
+
+	return nil
 }

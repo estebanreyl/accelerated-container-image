@@ -23,18 +23,27 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/containerd/containerd/images"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // REGISTRY
+// TestRegistry is a mock registry that can be used for testing purposes.
+// The implementation is a combination of in memory and local storage, where
+// the in memory storage is used for pushes and overrides. The local storage
+// provides a prebuilt index of repositories and manifests for pulls.
+// Features: Pull, Push, Resolve.
+// Limitations: Cross Repository Mounts are not currently supported, Delete
+// is not supported.
 type TestRegistry struct {
 	internalRegistry internalRegistry
 	opts             RegistryOptions
 }
 
 type RegistryOptions struct {
-	InmemoryOnly      bool // Specifies if the registry should not load any resources from storage
-	localRegistryPath string
+	InmemoryOnly              bool   // Specifies if the registry should not load any resources from storage
+	LocalRegistryPath         string // Specifies the path to the local registry
+	ManifestPushIgnoresLayers bool   // Specifies if the registry should require layers to be pushed before manifest
 }
 
 type internalRegistry map[string]*RepoStore
@@ -45,17 +54,19 @@ func NewTestRegistry(ctx context.Context, opts RegistryOptions) (*TestRegistry, 
 		opts:             opts,
 	}
 	if !opts.InmemoryOnly {
-		files, err := os.ReadDir(opts.localRegistryPath)
+		files, err := os.ReadDir(opts.LocalRegistryPath)
 		if err != nil {
 			return nil, err
 		}
 		for _, file := range files {
 			if file.IsDir() {
 				// Actual load from storage is done in a deferred manner as an optimization
-				TestRegistry.internalRegistry[file.Name()] = &RepoStore{
-					path: filepath.Join(opts.localRegistryPath, file.Name()),
-					opts: &opts,
-				}
+				repoStore := NewRepoStore(
+					ctx,
+					filepath.Join(opts.LocalRegistryPath, file.Name()),
+					&opts,
+				)
+				TestRegistry.internalRegistry[file.Name()] = repoStore
 			}
 		}
 		if err != nil {
@@ -82,4 +93,45 @@ func (r *TestRegistry) Fetch(ctx context.Context, repository string, descriptor 
 		return repo.Fetch(ctx, descriptor)
 	}
 	return nil, errors.New("Repository not found")
+}
+
+func (r *TestRegistry) Push(ctx context.Context, repository string, tag string, descriptor v1.Descriptor, content []byte) error {
+	// Creating a new repo is allowed TODO
+	if repo, ok := r.internalRegistry[repository]; ok {
+		return repo.Push(ctx, descriptor, tag, content)
+	}
+	return errors.New("Repository not found")
+}
+
+func (r *TestRegistry) Exists(ctx context.Context, repository string, tag string, desc v1.Descriptor) (bool, error) {
+	repo, ok := r.internalRegistry[repository]
+	if !ok {
+		return false, nil
+	}
+
+	// If no tag needs to be verified we only care about the digest
+	if tag == "" {
+		return repo.Exists(ctx, desc)
+	}
+
+	// If a tag is specified for a digest we need to match the tag to the digest
+	switch desc.MediaType {
+	case v1.MediaTypeImageManifest, v1.MediaTypeImageIndex,
+		images.MediaTypeDockerSchema2Manifest, images.MediaTypeDockerSchema2ManifestList:
+		digest, ok := repo.inmemoryRepo.tags[tag]
+		if !ok {
+			return false, nil
+		}
+		if digest != desc.Digest {
+			return false, nil
+		}
+		// Tag matches provided digest. Since no delete option exists
+		// we don't need to check if the digest exists in the repo stores.
+		return true, nil
+	default:
+		if tag != "" {
+			return false, errors.New("Tag specified for non manifest")
+		}
+		return repo.Exists(ctx, desc)
+	}
 }

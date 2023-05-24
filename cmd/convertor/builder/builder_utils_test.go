@@ -18,6 +18,7 @@ package builder
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -219,104 +220,79 @@ func Test_fetchConfig(t *testing.T) {
 	}
 }
 
+// Simple test to ensure that the uploadBytes function is working as expected for a few different scenarios.
 func Test_uploadBytes(t *testing.T) {
 	ctx := context.Background()
-	resolver := getResolver(t, ctx)
+	sourceManifest := testingresources.DockerV2_Manifest_Simple_Ref
+	targetManifest := "sample.localstore.io/hello-world:another"
 
-	type args struct {
-		ctx     context.Context
-		fetcher remotes.Fetcher
-		desc    v1.Descriptor
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    *v1.Image
-		wantErr bool
-	}{
-		{
-			name: "Fetch Config with supported mediaType (docker v2)",
-			args: args{
-				fetcher: getTestFetcherFromResolver(t, ctx, resolver, testingresources.DockerV2_Manifest_Simple_Ref),
-				desc: v1.Descriptor{
-					MediaType: images.MediaTypeDockerSchema2Config,
-					Digest:    testingresources.DockerV2_Manifest_Simple_Config_Digest,
-					Size:      1470,
-					Platform: &v1.Platform{
-						Architecture: "amd64",
-						OS:           "linux",
-					},
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := fetchConfig(tt.args.ctx, tt.args.fetcher, tt.args.desc)
-			if (err == nil) && tt.wantErr {
-				t.Error("fetchConfig() error was expected but no error was returned")
-			}
-			if err != nil {
-				if !tt.wantErr {
-					t.Errorf("fetchConfig() unexpectedly returned error %v", err)
-				}
-				return
-			}
+	// Create a new registry to push to
+	reg := testingresources.GetTestRegistry(t, ctx, testingresources.RegistryOptions{
+		InmemoryOnly:              false,
+		ManifestPushIgnoresLayers: false,
+	})
 
-		})
+	resolver := testingresources.GetCustomTestResolver(t, ctx, reg)
+
+	_, desc, err := resolver.Resolve(ctx, sourceManifest)
+	if err != nil {
+		t.Error(err)
 	}
+	fetcher := testingresources.GetTestFetcherFromResolver(t, ctx, resolver, sourceManifest)
+	pusher := testingresources.GetTestPusherFromResolver(t, ctx, resolver, targetManifest)
+
+	// Load manifest
+	content, err := fetcher.Fetch(ctx, desc)
+	if err != nil {
+		t.Error(err)
+	}
+
+	testuploadBytes := func(manifest v1.Manifest, pusher remotes.Pusher) error {
+		manifestBytes, err := testingresources.ConsistentManifestMarshal(&manifest)
+		if err != nil {
+			return err
+		}
+		newDesc := v1.Descriptor{
+			MediaType: images.MediaTypeDockerSchema2Manifest,
+			Digest:    digest.FromBytes(manifestBytes),
+			Size:      int64(len(manifestBytes)),
+		}
+		err = uploadBytes(ctx, pusher, newDesc, manifestBytes)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// Docker v2 manifest
+	manifest := v1.Manifest{}
+	json.NewDecoder(content).Decode(&manifest)
+
+	// Re-Push Manifest  error should be handled
+	testingresources.Assert(t, testuploadBytes(manifest, testingresources.GetTestPusherFromResolver(t, ctx, resolver, sourceManifest)) == nil, "Could not upload Re upload Docker v2 Manifest with layers present") // Docker v2 manifest
+
+	// Modify manifest to change digest
+	manifest.Annotations = map[string]string{
+		"test": "test",
+	}
+	testingresources.Assert(t, testuploadBytes(manifest, pusher) == nil, "Could not upload Docker v2 Manifest with layers present") // Docker v2 manifest
+
+	// OCI manifest
+	manifest.MediaType = v1.MediaTypeImageManifest
+	for i := range manifest.Layers {
+		manifest.Layers[i].MediaType = v1.MediaTypeImageLayerGzip
+	}
+	testingresources.Assert(t, testuploadBytes(manifest, pusher) == nil, "Could not upload OCI Manifest with layers present") // Docker v2 manifest
+
+	// Missing layer
+	manifest.Layers[0].Digest = digest.FromString("not there")
+	testingresources.Assert(t, testuploadBytes(manifest, pusher) != nil, "Expected layer not found error") // Docker v2 manifest
 }
 
 func Test_uploadBlob(t *testing.T) {
-	ctx := context.Background()
-	resolver := getResolver(t, ctx)
-
-	type args struct {
-		ctx     context.Context
-		fetcher remotes.Fetcher
-		desc    v1.Descriptor
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    *v1.Image
-		wantErr bool
-	}{
-		{
-			name: "Fetch Config with supported mediaType (docker v2)",
-			args: args{
-				fetcher: getTestFetcherFromResolver(t, ctx, resolver, testingresources.DockerV2_Manifest_Simple_Ref),
-				desc: v1.Descriptor{
-					MediaType: images.MediaTypeDockerSchema2Config,
-					Digest:    testingresources.DockerV2_Manifest_Simple_Config_Digest,
-					Size:      1470,
-					Platform: &v1.Platform{
-						Architecture: "amd64",
-						OS:           "linux",
-					},
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := fetchConfig(tt.args.ctx, tt.args.fetcher, tt.args.desc)
-			if (err == nil) && tt.wantErr {
-				t.Error("fetchConfig() error was expected but no error was returned")
-			}
-			if err != nil {
-				if !tt.wantErr {
-					t.Errorf("fetchConfig() unexpectedly returned error %v", err)
-				}
-				return
-			}
-
-		})
-	}
 }
 
 func Test_getFileDesc(t *testing.T) {
-
 }
 
 // TODO: Helper functions writing to the file system are not currently unit tested. This would involve mocking the

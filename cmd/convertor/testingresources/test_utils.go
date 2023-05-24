@@ -17,21 +17,45 @@ package testingresources
 
 import (
 	"context"
-	"fmt"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/containerd/containerd/remotes"
 )
 
-func GetTestResolver(t *testing.T, ctx context.Context) remotes.Resolver {
+func getLocalRegistryPath() string {
 	cwd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	return path.Join(cwd, "..", "testingresources", "mocks", "registry")
+}
+
+// GetTestRegistry returns a TestRegistry with the specified options. If opts.LocalRegistryPath is not specified,
+// the default local registry path will be used.
+func GetTestRegistry(t *testing.T, ctx context.Context, opts RegistryOptions) *TestRegistry {
+	if opts.LocalRegistryPath == "" {
+		opts.LocalRegistryPath = getLocalRegistryPath()
+	}
+	reg, err := NewTestRegistry(ctx, opts)
 	if err != nil {
 		t.Error(err)
 	}
+	return reg
+}
 
-	localRegistryPath := fmt.Sprintf("%s/../testingresources/mocks/registry", cwd)
+func GetTestResolver(t *testing.T, ctx context.Context) remotes.Resolver {
+	localRegistryPath := getLocalRegistryPath()
 	resolver, err := NewMockLocalResolver(ctx, localRegistryPath)
+	if err != nil {
+		t.Error(err)
+	}
+	return resolver
+}
+
+func GetCustomTestResolver(t *testing.T, ctx context.Context, testRegistry *TestRegistry) remotes.Resolver {
+	resolver, err := NewCustomMockLocalResolver(ctx, testRegistry)
 	if err != nil {
 		t.Error(err)
 	}
@@ -44,6 +68,14 @@ func GetTestFetcherFromResolver(t *testing.T, ctx context.Context, resolver remo
 		t.Error(err)
 	}
 	return fetcher
+}
+
+func GetTestPusherFromResolver(t *testing.T, ctx context.Context, resolver remotes.Resolver, ref string) remotes.Pusher {
+	pusher, err := resolver.Pusher(ctx, ref)
+	if err != nil {
+		t.Error(err)
+	}
+	return pusher
 }
 
 func Assert(t *testing.T, condition bool, msg string) {
