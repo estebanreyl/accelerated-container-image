@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path"
 	"testing"
 
 	testingresources "github.com/containerd/accelerated-container-image/cmd/convertor/testingresources"
@@ -54,7 +55,7 @@ func Test_fetchManifest(t *testing.T) {
 				desc: v1.Descriptor{
 					MediaType: images.MediaTypeDockerSchema2Manifest,
 					Digest:    testingresources.DockerV2_Manifest_Simple_Digest,
-					Size:      525,
+					Size:      testingresources.DockerV2_Manifest_Simple_Size,
 				},
 				ctx: ctx,
 			},
@@ -225,14 +226,7 @@ func Test_uploadBytes(t *testing.T) {
 	ctx := context.Background()
 	sourceManifest := testingresources.DockerV2_Manifest_Simple_Ref
 	targetManifest := "sample.localstore.io/hello-world:another"
-
-	// Create a new registry to push to
-	reg := testingresources.GetTestRegistry(t, ctx, testingresources.RegistryOptions{
-		InmemoryOnly:              false,
-		ManifestPushIgnoresLayers: false,
-	})
-
-	resolver := testingresources.GetCustomTestResolver(t, ctx, reg)
+	resolver := testingresources.GetTestResolver(t, ctx)
 
 	_, desc, err := resolver.Resolve(ctx, sourceManifest)
 	if err != nil {
@@ -247,7 +241,7 @@ func Test_uploadBytes(t *testing.T) {
 		t.Error(err)
 	}
 
-	testuploadBytes := func(manifest v1.Manifest, pusher remotes.Pusher) error {
+	test_uploadBytes := func(manifest v1.Manifest, pusher remotes.Pusher) error {
 		manifestBytes, err := testingresources.ConsistentManifestMarshal(&manifest)
 		if err != nil {
 			return err
@@ -269,30 +263,85 @@ func Test_uploadBytes(t *testing.T) {
 	json.NewDecoder(content).Decode(&manifest)
 
 	// Re-Push Manifest  error should be handled
-	testingresources.Assert(t, testuploadBytes(manifest, testingresources.GetTestPusherFromResolver(t, ctx, resolver, sourceManifest)) == nil, "Could not upload Re upload Docker v2 Manifest with layers present") // Docker v2 manifest
+	testingresources.Assert(t, test_uploadBytes(manifest, testingresources.GetTestPusherFromResolver(t, ctx, resolver, sourceManifest)) == nil, "Could not upload Re upload Docker v2 Manifest with layers present") // Docker v2 manifest
 
 	// Modify manifest to change digest
 	manifest.Annotations = map[string]string{
 		"test": "test",
 	}
-	testingresources.Assert(t, testuploadBytes(manifest, pusher) == nil, "Could not upload Docker v2 Manifest with layers present") // Docker v2 manifest
+	testingresources.Assert(t, test_uploadBytes(manifest, pusher) == nil, "Could not upload Docker v2 Manifest with layers present") // Docker v2 manifest
 
 	// OCI manifest
 	manifest.MediaType = v1.MediaTypeImageManifest
 	for i := range manifest.Layers {
 		manifest.Layers[i].MediaType = v1.MediaTypeImageLayerGzip
 	}
-	testingresources.Assert(t, testuploadBytes(manifest, pusher) == nil, "Could not upload OCI Manifest with layers present") // Docker v2 manifest
+	testingresources.Assert(t, test_uploadBytes(manifest, pusher) == nil, "Could not upload OCI Manifest with layers present") // Docker v2 manifest
 
 	// Missing layer
 	manifest.Layers[0].Digest = digest.FromString("not there")
-	testingresources.Assert(t, testuploadBytes(manifest, pusher) != nil, "Expected layer not found error") // Docker v2 manifest
+	testingresources.Assert(t, test_uploadBytes(manifest, pusher) != nil, "Expected layer not found error") // Docker v2 manifest
 }
 
 func Test_uploadBlob(t *testing.T) {
+	ctx := context.Background()
+	// Create a new inmemory registry to push to
+	reg := testingresources.GetTestRegistry(t, ctx, testingresources.RegistryOptions{
+		InmemoryOnly:              true,
+		ManifestPushIgnoresLayers: false,
+	})
+
+	resolver := testingresources.GetCustomTestResolver(t, ctx, reg)
+	pusher := testingresources.GetTestPusherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest")
+	blobPath := path.Join(testingresources.GetLocalRegistryPath(), "hello-world", "blobs", "sha256", digest.Digest(testingresources.DockerV2_Manifest_Simple_Layer_0_Digest).Encoded())
+
+	desc := v1.Descriptor{
+		MediaType: images.MediaTypeDockerSchema2Manifest,
+		Digest:    testingresources.DockerV2_Manifest_Simple_Layer_0_Digest,
+		Size:      testingresources.DockerV2_Manifest_Simple_Layer_0_Size,
+	}
+
+	testingresources.Assert(t, uploadBlob(ctx, pusher, blobPath, desc) == nil, "uploadBlob() expected no error but got one")
+
+	// Uploads already present shuld give no issues
+	testingresources.Assert(t, uploadBlob(ctx, pusher, blobPath, desc) == nil, "uploadBlob() retry expected no error but got one")
+	// Validate manifest of pushed blob
+	fetcher := testingresources.GetTestFetcherFromResolver(t, ctx, resolver, "sample.localstore.io/hello-world:latest")
+	blob, err := fetcher.Fetch(ctx, desc)
+	if err != nil {
+		t.Error(err)
+	}
+	blobDigest, err := digest.FromReader(blob)
+	if err != nil {
+		t.Error(err)
+	}
+	testingresources.Assert(t, blobDigest == desc.Digest, "uploadBlob() blob digest does not match stored value")
 }
 
 func Test_getFileDesc(t *testing.T) {
+	test_getFileDesc := func(blobPath string, compressed bool, expectedDigest string, expectedSize int64) {
+		desc, err := getFileDesc(blobPath, compressed)
+		if err != nil {
+			t.Error(err)
+		}
+		testingresources.Assert(t, desc.Digest.String() != expectedDigest, "getFileDesc() wrong digest returned")
+		testingresources.Assert(t, desc.Size != expectedSize, "getFileDesc() wrong size returned")
+	}
+	blobPath := path.Join(testingresources.GetLocalRegistryPath(), "hello-world", "blobs", "sha256")
+
+	// Compressed blob
+	test_getFileDesc(
+		path.Join(blobPath, digest.Digest(testingresources.DockerV2_Manifest_Simple_Layer_0_Digest).Encoded()),
+		false,
+		testingresources.DockerV2_Manifest_Simple_Layer_0_Digest,
+		testingresources.DockerV2_Manifest_Simple_Layer_0_Size)
+
+	// Uncompressed blob
+	test_getFileDesc(
+		path.Join(blobPath, digest.Digest(testingresources.DockerV2_Manifest_Simple_Config_Digest).Encoded()),
+		false,
+		testingresources.DockerV2_Manifest_Simple_Config_Digest,
+		testingresources.DockerV2_Manifest_Simple_Config_Size)
 }
 
 // TODO: Helper functions writing to the file system are not currently unit tested. This would involve mocking the

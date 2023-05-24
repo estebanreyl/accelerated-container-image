@@ -95,12 +95,19 @@ func (r *TestRegistry) Fetch(ctx context.Context, repository string, descriptor 
 	return nil, errors.New("Repository not found")
 }
 
+// Push Adds content to the in-memory store
 func (r *TestRegistry) Push(ctx context.Context, repository string, tag string, descriptor v1.Descriptor, content []byte) error {
-	// Creating a new repo is allowed TODO
-	if repo, ok := r.internalRegistry[repository]; ok {
+	repo, ok := r.internalRegistry[repository]
+	if ok {
 		return repo.Push(ctx, descriptor, tag, content)
 	}
-	return errors.New("Repository not found")
+
+	// If the repository does not exist we create a new one
+	repo = NewRepoStore(ctx, repository, &r.opts)
+	r.internalRegistry[repository] = repo
+	repo.Push(ctx, descriptor, tag, content)
+
+	return nil
 }
 
 func (r *TestRegistry) Exists(ctx context.Context, repository string, tag string, desc v1.Descriptor) (bool, error) {

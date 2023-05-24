@@ -24,7 +24,7 @@ import (
 	"github.com/containerd/containerd/remotes"
 )
 
-func getLocalRegistryPath() string {
+func GetLocalRegistryPath() string {
 	cwd, err := os.Getwd()
 	if err != nil {
 		panic(err)
@@ -36,7 +36,7 @@ func getLocalRegistryPath() string {
 // the default local registry path will be used.
 func GetTestRegistry(t *testing.T, ctx context.Context, opts RegistryOptions) *TestRegistry {
 	if opts.LocalRegistryPath == "" {
-		opts.LocalRegistryPath = getLocalRegistryPath()
+		opts.LocalRegistryPath = GetLocalRegistryPath()
 	}
 	reg, err := NewTestRegistry(ctx, opts)
 	if err != nil {
@@ -46,7 +46,7 @@ func GetTestRegistry(t *testing.T, ctx context.Context, opts RegistryOptions) *T
 }
 
 func GetTestResolver(t *testing.T, ctx context.Context) remotes.Resolver {
-	localRegistryPath := getLocalRegistryPath()
+	localRegistryPath := GetLocalRegistryPath()
 	resolver, err := NewMockLocalResolver(ctx, localRegistryPath)
 	if err != nil {
 		t.Error(err)

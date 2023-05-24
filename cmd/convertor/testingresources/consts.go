@@ -38,9 +38,13 @@ adding and downloading images.
 const (
 	// MINIMAL MANIFESTS (For unit testing)
 	// DOCKER V2 (amd64)
-	DockerV2_Manifest_Simple_Ref           = "sample.localstore.io/hello-world:amd64"
-	DockerV2_Manifest_Simple_Digest        = "sha256:7e9b6e7ba2842c91cf49f3e214d04a7a496f8214356f41d81a6e6dcad11f11e3"
-	DockerV2_Manifest_Simple_Config_Digest = "sha256:9c7a54a9a43cca047013b82af109fe963fde787f63f9e016fdc3384500c2823d"
+	DockerV2_Manifest_Simple_Ref            = "sample.localstore.io/hello-world:amd64"
+	DockerV2_Manifest_Simple_Digest         = "sha256:7e9b6e7ba2842c91cf49f3e214d04a7a496f8214356f41d81a6e6dcad11f11e3"
+	DockerV2_Manifest_Simple_Size           = 525
+	DockerV2_Manifest_Simple_Config_Digest  = "sha256:9c7a54a9a43cca047013b82af109fe963fde787f63f9e016fdc3384500c2823d"
+	DockerV2_Manifest_Simple_Config_Size    = 1470
+	DockerV2_Manifest_Simple_Layer_0_Digest = "sha256:719385e32844401d57ecfd3eacab360bf551a1491c05b85806ed8f1b08d792f6"
+	DockerV2_Manifest_Simple_Layer_0_Size   = 2457
 
 	// DOCKER MANIFEST LIST
 	Docker_Manifest_List_Ref    = "sample.localstore.io/hello-world:docker-list"
