@@ -17,13 +17,18 @@
 package builder
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"path"
+	"reflect"
 	"testing"
 
 	testingresources "github.com/containerd/accelerated-container-image/cmd/convertor/testingresources"
+	"github.com/containerd/accelerated-container-image/pkg/snapshot"
 	"github.com/containerd/containerd/images"
 	_ "github.com/containerd/containerd/pkg/testutil" // Handle custom root flag
 	"github.com/containerd/containerd/remotes"
@@ -147,7 +152,6 @@ func Test_fetchManifest(t *testing.T) {
 	}
 }
 
-// Test_fetchConfig tests the fetchConfig function
 func Test_fetchConfig(t *testing.T) {
 	ctx := context.Background()
 	resolver := testingresources.GetTestResolver(t, ctx)
@@ -222,7 +226,6 @@ func Test_fetchConfig(t *testing.T) {
 	}
 }
 
-// Test_uploadBytes tests to ensure that the uploadBytes function is working as expected for a few different scenarios.
 func Test_uploadBytes(t *testing.T) {
 	ctx := context.Background()
 	sourceManifest := testingresources.DockerV2_Manifest_Simple_Ref
@@ -345,5 +348,122 @@ func Test_getFileDesc(t *testing.T) {
 		testingresources.DockerV2_Manifest_Simple_Config_Size)
 }
 
-// TODO: Helper functions writing to the file system are not currently unit tested. It seems containerd does
-// these by creating temporary filesystems and then removing them. We can follow a similar approach.
+func Test_downloadLayer(t *testing.T) {
+	ctx := context.Background()
+	testDownloadLayer := func(t *testing.T, ctx context.Context, testName string, sourceDesc v1.Descriptor, decompress bool) {
+		testingresources.RunTestWithTempDir(t, ctx, testName, func(t *testing.T, ctx context.Context, workdir string) {
+			resolver := testingresources.GetTestResolver(t, ctx)
+			fetcher := testingresources.GetTestFetcherFromResolver(t, ctx, resolver, testingresources.DockerV2_Manifest_Simple_Ref)
+			layerPath := path.Join(workdir, "layer.tar")
+
+			err := downloadLayer(ctx, fetcher, layerPath, sourceDesc, decompress)
+			if err != nil {
+				t.Error(err)
+			}
+
+			_, err = os.Stat(layerPath)
+			if err != nil {
+				t.Errorf("Expected layer file to exist")
+			}
+
+			var outputDesc v1.Descriptor
+			if !decompress {
+				outputDesc, err = getFileDesc(layerPath, !decompress)
+				if err != nil {
+					t.Error(err)
+				}
+			} else {
+				// Compress again to verify digest
+				file, err := os.Open(layerPath)
+				if err != nil {
+					t.Error(err)
+				}
+				defer file.Close()
+
+				r, w := io.Pipe()
+				defer r.Close()
+				gzWriter := gzip.NewWriter(w)
+				defer w.Close()
+				defer gzWriter.Close()
+
+				go func() {
+					_, err := io.Copy(gzWriter, file)
+					defer gzWriter.Close()
+					if err != nil {
+						t.Error(err)
+					}
+				}()
+				data := make([]byte, sourceDesc.Size)
+				_, err = io.ReadFull(r, data)
+				if err != nil {
+					t.Error(err)
+				}
+
+				outputDesc = v1.Descriptor{
+					Digest: digest.FromBytes(data),
+					Size:   int64(len(data)),
+				}
+			}
+
+			testingresources.Assert(t, outputDesc.Digest == sourceDesc.Digest, "downloadLayer() wrong digest returned")
+			testingresources.Assert(t, outputDesc.Size == sourceDesc.Size, "downloadLayer() wrong size returned")
+		})
+	}
+
+	testDownloadLayer(t, ctx, "downloadGzippedLayer",
+		v1.Descriptor{
+			MediaType: images.MediaTypeDockerSchema2LayerGzip,
+			Digest:    testingresources.DockerV2_Manifest_Simple_Layer_0_Digest,
+			Size:      testingresources.DockerV2_Manifest_Simple_Layer_0_Size,
+		}, true)
+
+	testDownloadLayer(t, ctx, "downloadLayer",
+		v1.Descriptor{
+			MediaType: images.MediaTypeDockerSchema2Config,
+			Digest:    testingresources.DockerV2_Manifest_Simple_Config_Digest,
+			Size:      testingresources.DockerV2_Manifest_Simple_Config_Size,
+		}, false)
+}
+
+func Test_writeConfig(t *testing.T) {
+	ctx := context.Background()
+	testingresources.RunTestWithTempDir(t, ctx, "writeConfigMinimal", func(t *testing.T, ctx context.Context, workdir string) {
+		configSample := snapshot.OverlayBDBSConfig{
+			ResultFile: "",
+			Lowers: []snapshot.OverlayBDBSConfigLower{
+				{
+					File: overlaybdBaseLayer,
+				},
+				{
+					File: path.Join(workdir, commitFile),
+				},
+			},
+			Upper: snapshot.OverlayBDBSConfigUpper{
+				Data:  path.Join(workdir, "writable_data"),
+				Index: path.Join(workdir, "writable_index"),
+			},
+		}
+
+		err := writeConfig(workdir, &configSample)
+		if err != nil {
+			t.Error(err)
+		}
+
+		file, err := os.Open(path.Join(workdir, "config.json"))
+		if err != nil {
+			t.Errorf("Expected layer file to exist")
+		}
+		defer file.Close()
+
+		configRes := snapshot.OverlayBDBSConfig{}
+
+		err = json.NewDecoder(file).Decode(&configRes)
+		if err != nil {
+			t.Error(err)
+		}
+
+		if !reflect.DeepEqual(configSample, configRes) {
+			t.Errorf("Input config and output config are not equal, wanted: %+v \n got: %+v", configSample, configRes)
+		}
+	})
+}

@@ -10,19 +10,19 @@ This PR is meant to add some unit testing for some of the core portions of the u
 - fetchManifest -> Added test
 - fetchConfig -> Added test
 - fetchManifestAndConfig -> Seemed unecessary
-- downloadLayer -> TODO
-- writeConfig -> TODO
+- downloadLayer -> Added test
+- writeConfig -> Added test
 - getFileDesc -> Added test
 - uploadBlob -> Added test
 - uploadBytes -> Added test
-- buildArchiveFromFiles -> TODO
-- addFileToArchive -> TODO
+- buildArchiveFromFiles -> Left For later
+- addFileToArchive -> Left For later
 
 ## builder.go
 - build -> Added test
 
 ## overlaybd_builder.go
-- uploadBaseLayer -> TODO
+- uploadBaseLayer -> Added test
 - checkForConvertedLayer -> TODO
 - storeConvertedLayer -> TODO
 I am not currenly sure how best to add the remaining functions due to their use of the overlaybd binaries. In the near term these should be covered by unit tests but leaving as a future work item.
