@@ -49,16 +49,11 @@ const (
 	// DOCKER MANIFEST LIST
 	Docker_Manifest_List_Ref    = "sample.localstore.io/hello-world:docker-list"
 	Docker_Manifest_List_Digest = "sha256:726023f73a8fc5103fa6776d48090539042cb822531c6b751b1f6dd18cb5705d"
+)
 
-	// TODO
-	// OCI
-	OCI_Manifest_Simple_Ref           = "sample.localstore.io/hello-world:oci"
-	OCI_Manifest_Simple_Digest        = ""
-	OCI_Manifest_Simple_Config_Digest = ""
-
-	// Index
-	OCI_Manifest_Index_Ref    = "sample.localstore.io/hello-world:oci-index"
-	OCI_Manifest_Index_Digest = ""
+const (
+	// OTHER CONSTS (For unit testing)
+	ExpectedOverlaybdBaseLayerDigest = "sha256:a8b5fca80efae55088290f3da8110d7742de55c2a378d5ab53226a483f390e21"
 )
 
 // ParseRef Parses a ref into its components: host, repository, tag/digest

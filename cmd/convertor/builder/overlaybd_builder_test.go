@@ -18,34 +18,62 @@ package builder
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"testing"
 
-	"github.com/containerd/accelerated-container-image/cmd/convertor/testingresources"
+	testingresources "github.com/containerd/accelerated-container-image/cmd/convertor/testingresources"
+	"github.com/opencontainers/go-digest"
 )
 
-func Test_overlaybd_builder_BuildLayer(t *testing.T) {
+func Test_overlaybd_builder_uploadBaseLayer(t *testing.T) {
 	ctx := context.Background()
 
 	testingresources.RunTestWithTempDir(t, ctx, "overlaybd-builder", func(t *testing.T, ctx context.Context, workdir string) {
+		reg := testingresources.GetTestRegistry(t, ctx, testingresources.RegistryOptions{
+			InmemoryOnly: true,
+		})
+		resolver := testingresources.GetCustomTestResolver(t, ctx, reg)
+		pusher := testingresources.GetTestPusherFromResolver(t, ctx, resolver, testingresources.DockerV2_Manifest_Simple_Ref)
+
 		// Create a new overlaybd builder engine
 		base := &builderEngineBase{
 			workDir: workdir,
+			pusher:  pusher,
+		}
+		e := &overlaybdBuilderEngine{
+			builderEngineBase: base,
+		}
+		desc, err := e.uploadBaseLayer(ctx)
+		if err != nil {
+			t.Error(err)
+		}
+		testingresources.Assert(t,
+			desc.Digest == testingresources.ExpectedOverlaybdBaseLayerDigest,
+			fmt.Sprintf("Expected digest %s, got %s", testingresources.ExpectedOverlaybdBaseLayerDigest, desc.Digest))
+
+		// Verify that the layer is in the registry and is the smae as expected
+		fetcher := testingresources.GetTestFetcherFromResolver(t, ctx, resolver, testingresources.DockerV2_Manifest_Simple_Ref)
+		blob, err := fetcher.Fetch(ctx, desc)
+		if err != nil {
+			t.Error(err)
+		}
+		// read blob into byte
+		data, err := io.ReadAll(blob)
+		if err != nil {
+			t.Error(err)
 		}
 
-		obdEngine := NewOverlayBDBuilderEngine(base)
-		obdEngine.BuildLayer(ctx, 0)
+		digest := digest.FromBytes(data)
+
+		testingresources.Assert(t,
+			digest == testingresources.ExpectedOverlaybdBaseLayerDigest,
+			fmt.Sprintf("Expected digest %s, got %s", testingresources.ExpectedOverlaybdBaseLayerDigest, digest))
 	})
 }
 
-func Test_overlaybd_builder_UploadLayer(t *testing.T) {
-	// e.getLayerDir(idx) // override
-	// uploadBlob is called, mostly want to verify the blob digest.
-	// Lets get a converted image and verify the digest
-}
+func Test_overlaybd_builder_BuildLayer_alreadyConverted(t *testing.T) {
 
-func Test_overlaybd_builder_UploadImage(t *testing.T) {
-	// Not sure this one needs to be tested. Calls uploadManifestAndConfig
-	// We would need to populate e.overlaybdLayers which is easy enough and thats kinda it
 }
 
 func Test_overlaybd_builder_CheckForConvertedLayer(t *testing.T) {
@@ -77,18 +105,4 @@ func Test_overlaybd_builder_StoreConvertedLayerDetails(t *testing.T) {
 	// need overlaybdLayers[0]
 	// reposiotry
 	// host
-}
-
-func Test_overlaybd_builder_uploadBaseLayer(t *testing.T) {
-	// Temp workdir
-	// verify blob is equivalent to existing blob?
-	// Need a converted image to verify the blob
-	// add baselayer with tar header
-}
-
-func Test_overlaybd_builder_DownloadLayer(t *testing.T) {
-	// set e.manifest.Layers[0]
-	// g.fetLayerDir
-	// probably fetcher? I dont see much of a point to verifying this
-	// as its just a small wrapper around downloadLayer
 }
