@@ -31,7 +31,6 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-// TESTS
 func Test_fetchManifest(t *testing.T) {
 	ctx := context.Background()
 	resolver := testingresources.GetTestResolver(t, ctx)
@@ -148,6 +147,7 @@ func Test_fetchManifest(t *testing.T) {
 	}
 }
 
+// Test_fetchConfig tests the fetchConfig function
 func Test_fetchConfig(t *testing.T) {
 	ctx := context.Background()
 	resolver := testingresources.GetTestResolver(t, ctx)
@@ -171,7 +171,7 @@ func Test_fetchConfig(t *testing.T) {
 				desc: v1.Descriptor{
 					MediaType: images.MediaTypeDockerSchema2Config,
 					Digest:    testingresources.DockerV2_Manifest_Simple_Config_Digest,
-					Size:      1470,
+					Size:      testingresources.DockerV2_Manifest_Simple_Config_Size,
 					Platform: &v1.Platform{
 						Architecture: "amd64",
 						OS:           "linux",
@@ -222,7 +222,7 @@ func Test_fetchConfig(t *testing.T) {
 	}
 }
 
-// Simple test to ensure that the uploadBytes function is working as expected for a few different scenarios.
+// Test_uploadBytes tests to ensure that the uploadBytes function is working as expected for a few different scenarios.
 func Test_uploadBytes(t *testing.T) {
 	ctx := context.Background()
 	sourceManifest := testingresources.DockerV2_Manifest_Simple_Ref
@@ -345,6 +345,5 @@ func Test_getFileDesc(t *testing.T) {
 		testingresources.DockerV2_Manifest_Simple_Config_Size)
 }
 
-// TODO: Helper functions writing to the file system are not currently unit tested. This would involve mocking the
-// existing filesystem access which involves additional refactoring out of the scope of initial coverage. The functions
-// should be covered in more complete end to end tests but this will be a nice to have.
+// TODO: Helper functions writing to the file system are not currently unit tested. It seems containerd does
+// these by creating temporary filesystems and then removing them. We can follow a similar approach.

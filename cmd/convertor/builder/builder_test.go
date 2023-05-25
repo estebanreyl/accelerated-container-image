@@ -31,7 +31,7 @@ import (
 // locking that can happen for the builder component. It works by testing multiple potential error patterns
 // across all stages of the process (Through consistent pseudo random generation, for reproducibility and
 // ease of adjustment). The test is designed to run in parallel to maximize the chance of a contention.
-func Test_builder_Err_Fuzz_Build(t *testing.T) {
+func Test_builder_Build_Contention(t *testing.T) {
 	// If timeout of 1 second is exceeded with the mock fuz builder engine
 	// then there is a high likelihood of a present contention error
 	contentionTimeout := time.Second * 1

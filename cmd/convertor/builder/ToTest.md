@@ -1,41 +1,46 @@
-Things to add unit tests for:
+This PR is meant to add some unit testing for some of the core portions of the userspace conversion. I have added some notes below on the added tests and notes on the remaining tests.
 
-# Convert
+## builder_engine
+ - uploadManifestAndConfig -> Added test
+ - getBuilderEngineBase -> Added test
+ - isGzipLayer -> Added Test
 
-# End to End
--> This involves quite a bit of mocking so I am unsure we'll get to it but in general it would involve mocks for:
-- Fetcher
-- Resolver
-- Pusher
-- Database
-- Commit, Apply, Create
+## builder_utils.go
+- fetch - Covered by fetchManifest and fetchConfig
+- fetchManifest -> Added test
+- fetchConfig -> Added test
+- fetchManifestAndConfig -> Seemed unecessary
+- downloadLayer -> TODO
+- writeConfig -> TODO
+- getFileDesc -> Added test
+- uploadBlob -> Added test
+- uploadBytes -> Added test
+- buildArchiveFromFiles -> TODO
+- addFileToArchive -> TODO
 
-Its probably better to add some form of integration tests instead as this is quite a bit of requirements and its so much mocking it kind of defeats much of the purpose when integration is totally possible.
+## builder.go
+- build -> Added test
 
-# Builder
- We could test builder with a simple mock builder, one to confirm the flow works as expected, maybe tries multiple orders for the channel completions. Not that many functions to mock and overall straightforward I think.
+## overlaybd_builder.go
+- uploadBaseLayer -> TODO
+- checkForConvertedLayer -> TODO
+- storeConvertedLayer -> TODO
+I am not currenly sure how best to add the remaining functions due to their use of the overlaybd binaries. In the near term these should be covered by unit tests but leaving as a future work item.
 
-# builder_engine
- 3 functions to test
- - uploadManifestAndConfig
- - getBuilderEngineBase -- Done
- - isGzipLayer -- Started
- All three seem straightforward but do require some level of mocking
+## fastoci_builder.go
+Similar problem to above. Leaving for later.
 
-# builder_utils -> Start with this one
-- fetch -> Mock fetcher, seems simple enough - Covered by fetchManifest and fetchConfig
-- fetchManifest -> Mock fetcher , return both list and manifest type - Started
-- fetchConfig -> Mock fetcher with returning config - Started
-- downloadLayer -> Actually creates a folder, probably not unit testable
-- writeConfig -> Writes file not really unit testable
-- getFileDesc -> More io, not unit testable
-- uploadBlob -> Pusher, unit testable with mock pusher
-- uploadBytes -> Pusher, unit testable with mock pusher
-- buildArchiveFromFiles -> More io, not unit testable
-- addFileToArchive -> More io, not unit testable
+## End to End tests
+- The existing CI seems like the best place to add end to end tests. TBD.
 
-# fastoci_builder
-- Tons of mocking to get any tests running here, probably not worth it, should be integration tested anyway without much problem with a local registry
+# Introduced Tools
+Tests for the userspace convertor are not particularly simple to make, if only because they require a lot of setup and work on both the filesystem and remote sources. To help with this I have introduced a few tools to help with testing.
 
-# overlaybd_builder
-- Tons of mocking to get any tests running here, probably not worth it, should be integration tested anyway without much problem with a local registry
+## local Remotes
+This is an abstraction to interact with a local registry. The registry itself supports fetching, resolving, and pushes. See the local_registry.go file for more info. Along with this there is a mocks/registry folder which allows us to load stored images into the local registry for testing for now I've kept the added images small and restricted to hello-world but more can be added easily.
+
+# Filesystem interactivity
+test_utils.go introduces RunTestWithTempDir which is a helper emulating the snapshotter tests that allows us to run a test with a temporary directory. This is useful for testing the filesystem interactions of several of the functions.
+
+# Other
+Theres also a small bugfix to builder to remove a small contention issue found while testing.

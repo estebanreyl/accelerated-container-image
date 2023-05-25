@@ -19,8 +19,10 @@ import (
 	"context"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 
+	"github.com/containerd/containerd/pkg/testutil"
 	"github.com/containerd/containerd/remotes"
 )
 
@@ -82,4 +84,24 @@ func Assert(t *testing.T, condition bool, msg string) {
 	if !condition {
 		t.Error(msg)
 	}
+}
+
+// RunTestWithTempDir runs the specified test function with a temporary writable directory.
+func RunTestWithTempDir(t *testing.T, ctx context.Context, name string, testFn func(t *testing.T, ctx context.Context, tmpDir string)) {
+	testutil.RequiresRoot(t)
+	tmpDir, err := os.MkdirTemp("", "unit-suite-accelerated-containers")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	work := filepath.Join(tmpDir, "work")
+	if err := os.MkdirAll(work, 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	defer testutil.DumpDirOnFailure(t, tmpDir)
+	t.Run(name, func(t *testing.T) {
+		testFn(t, ctx, work)
+	})
 }
