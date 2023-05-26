@@ -88,12 +88,7 @@ func Assert(t *testing.T, condition bool, msg string) {
 
 // RunTestWithTempDir runs the specified test function with a temporary writable directory.
 func RunTestWithTempDir(t *testing.T, ctx context.Context, name string, testFn func(t *testing.T, ctx context.Context, tmpDir string)) {
-	//testutil.RequiresRoot(t)
-	tmpDir, err := os.MkdirTemp("", "unit-suite-accelerated-containers")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	work := filepath.Join(tmpDir, "work")
 	if err := os.MkdirAll(work, 0777); err != nil {

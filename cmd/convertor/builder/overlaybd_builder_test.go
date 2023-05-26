@@ -23,7 +23,10 @@ import (
 	"testing"
 
 	testingresources "github.com/containerd/accelerated-container-image/cmd/convertor/testingresources"
+	"github.com/containerd/containerd/errdefs"
+	_ "github.com/containerd/containerd/pkg/testutil" // Handle custom root flag
 	"github.com/opencontainers/go-digest"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 func Test_overlaybd_builder_uploadBaseLayer(t *testing.T) {
@@ -72,37 +75,88 @@ func Test_overlaybd_builder_uploadBaseLayer(t *testing.T) {
 	})
 }
 
-func Test_overlaybd_builder_BuildLayer_alreadyConverted(t *testing.T) {
-
-}
-
 func Test_overlaybd_builder_CheckForConvertedLayer(t *testing.T) {
-	/*We can quickly mock the DB to check for a layer
-	There are three things to check here:
-	1. Check if the layer is in the DB
-		|
-	is it in db?
-		|
-		yes ---------
-		|           |
-		no          |
-			is it in the registry?
-					|
-					yes ----------------
-					|           	   |
-					no - U1        	   |   -- Removes entry from DB
-						   can it be cross repo mounted?
-						               |
-									  yes ---------------- Adds entry to db
-									   |
-									   no
-	*/
+	ctx := context.Background()
+	db := testingresources.NewLocalDB()
+	resolver := testingresources.GetTestResolver(t, ctx)
+	fetcher := testingresources.GetTestFetcherFromResolver(t, ctx, resolver, testingresources.DockerV2_Manifest_Simple_Ref)
+	base := &builderEngineBase{
+		fetcher:    fetcher,
+		host:       "sample.localstore.io",
+		repository: "hello-world",
+	}
+
+	// TODO: Maybe change this for an actually converted layer in the future
+	targetDesc := v1.Descriptor{
+		Digest:    testingresources.DockerV2_Manifest_Simple_Layer_0_Digest,
+		Size:      testingresources.DockerV2_Manifest_Simple_Layer_0_Size,
+		MediaType: v1.MediaTypeImageLayerGzip,
+	}
+
+	fakeChainId := "fake-chain-id" // We don't validate the chainID itself so such values are fine for testing
+	e := &overlaybdBuilderEngine{
+		builderEngineBase: base,
+		overlaybdLayers: []overlaybdConvertResult{
+			{
+				chainID: fakeChainId,
+			},
+		},
+	}
+
+	t.Run("No DB Present", func(t *testing.T) {
+		_, err := e.CheckForConvertedLayer(ctx, 0)
+		testingresources.Assert(t, errdefs.IsNotFound(err), fmt.Sprintf("CheckForConvertedLayer() returned an unexpected Error: %v", err))
+	})
+
+	base.db = db
+
+	t.Run("No Entry in DB", func(t *testing.T) {
+		_, err := e.CheckForConvertedLayer(ctx, 0)
+		testingresources.Assert(t, errdefs.IsNotFound(err), fmt.Sprintf("CheckForConvertedLayer() returned an unexpected Error: %v", err))
+	})
+
+	err := base.db.CreateEntry(ctx, e.host, e.repository, targetDesc.Digest, fakeChainId, targetDesc.Size)
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Run("Entry in DB and in Registry", func(t *testing.T) {
+		desc, err := e.CheckForConvertedLayer(ctx, 0)
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		testingresources.Assert(t, desc.Size == targetDesc.Size, "CheckForConvertedLayer() returned improper size layer")
+		testingresources.Assert(t, desc.Digest == targetDesc.Digest, "CheckForConvertedLayer() returned incorrect digest")
+	})
+
+	base.db = testingresources.NewLocalDB() // Reset DB
+	digestNotInRegistry := digest.FromString("Not in reg")
+	err = base.db.CreateEntry(ctx, e.host, e.repository, digestNotInRegistry, fakeChainId, 10)
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Run("Entry in DB but not in registry", func(t *testing.T) {
+		_, err := e.CheckForConvertedLayer(ctx, 0)
+		testingresources.Assert(t, errdefs.IsNotFound(err), fmt.Sprintf("CheckForConvertedLayer() returned an unexpected Error: %v", err))
+		entry := base.db.GetEntryForRepo(ctx, e.host, e.repository, fakeChainId)
+		testingresources.Assert(t, entry == nil, "CheckForConvertedLayer() Invalid entry was not cleaned up")
+	})
+
+	// TODO: Cross Repo Mount Scenario
 }
 
 func Test_overlaybd_builder_StoreConvertedLayerDetails(t *testing.T) {
-	// verify no db returns nil
-	// verify e.db.CreateEntry works
-	// need overlaybdLayers[0]
-	// reposiotry
-	// host
+	ctx := context.Background()
+	base := &builderEngineBase{
+		db: nil,
+	}
+	e := &overlaybdBuilderEngine{
+		builderEngineBase: base,
+	}
+	// No DB Case
+	err := e.StoreConvertedLayerDetails(ctx, 0)
+	testingresources.Assert(t, err == nil, "StoreConvertedLayerDetails() returned an unexpected Error")
 }

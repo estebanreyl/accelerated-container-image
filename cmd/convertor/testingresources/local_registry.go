@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/images"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
@@ -92,7 +93,7 @@ func (r *TestRegistry) Fetch(ctx context.Context, repository string, descriptor 
 	if repo, ok := r.internalRegistry[repository]; ok {
 		return repo.Fetch(ctx, descriptor)
 	}
-	return nil, errors.New("Repository not found")
+	return nil, errdefs.ErrNotFound
 }
 
 // Push Adds content to the in-memory store

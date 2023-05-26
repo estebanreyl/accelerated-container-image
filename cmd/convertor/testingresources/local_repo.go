@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/images"
@@ -123,6 +124,9 @@ func (r *RepoStore) Fetch(ctx context.Context, descriptor v1.Descriptor) (io.Rea
 		content, err := r.fileStore.Fetch(ctx, descriptor)
 
 		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				return nil, errors.Join(err, errdefs.ErrNotFound)
+			}
 			return nil, err
 		}
 		return content, nil
