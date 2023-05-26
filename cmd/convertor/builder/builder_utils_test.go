@@ -300,7 +300,7 @@ func Test_uploadBlob(t *testing.T) {
 	blobPath := path.Join(testingresources.GetLocalRegistryPath(), "hello-world", "blobs", "sha256", digest.Digest(testingresources.DockerV2_Manifest_Simple_Layer_0_Digest).Encoded())
 
 	desc := v1.Descriptor{
-		MediaType: images.MediaTypeDockerSchema2Manifest,
+		MediaType: images.MediaTypeDockerSchema2LayerGzip,
 		Digest:    testingresources.DockerV2_Manifest_Simple_Layer_0_Digest,
 		Size:      testingresources.DockerV2_Manifest_Simple_Layer_0_Size,
 	}

@@ -23,8 +23,8 @@ This PR is meant to add some unit testing for some of the core portions of the u
 
 ## overlaybd_builder.go
 - uploadBaseLayer -> Added test
-- checkForConvertedLayer -> TODO
-- storeConvertedLayer -> TODO
+- checkForConvertedLayer -> Added test
+- storeConvertedLayer -> Added test
 I am not currenly sure how best to add the remaining functions due to their use of the overlaybd binaries. In the near term these should be covered by unit tests but leaving as a future work item.
 
 ## fastoci_builder.go

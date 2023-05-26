@@ -20,9 +20,8 @@ import (
 	"context"
 
 	"github.com/containerd/accelerated-container-image/cmd/convertor/database"
-	"github.com/pkg/errors"
-
 	"github.com/opencontainers/go-digest"
+	"github.com/pkg/errors"
 )
 
 type localdb struct {
