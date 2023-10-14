@@ -19,6 +19,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/containerd/containerd/log"
 	"github.com/pkg/errors"
@@ -39,7 +40,17 @@ func NewSqlDB(db *sql.DB) ConversionDatabase {
 func (m *sqldb) GetEntryForRepo(ctx context.Context, host string, repository string, chainID string) *Entry {
 	var entry Entry
 
-	row := m.db.QueryRowContext(ctx, "select host, repo, chain_id, data_digest, data_size from overlaybd_layers where host=? and repo=? and chain_id=?", host, repository, chainID)
+	row := m.db.QueryRowContext(ctx, "select host, repo, chain_id, data_digest, data_size from overlaybd_layers where host=? and repo=? and chain_id=? where type=?", host, repository, chainID, "layer")
+	if err := row.Scan(&entry.Host, &entry.Repository, &entry.ChainID, &entry.ConvertedDigest, &entry.DataSize); err != nil {
+		return nil
+	}
+
+	return &entry
+}
+
+func (m *sqldb) GetEntryForManifest(ctx context.Context, host string, repository string, manifest digest.Digest) *Entry {
+	var entry Entry
+	row := m.db.QueryRowContext(ctx, "select host, repo, chain_id, data_digest, data_size, manifest_digest from overlaybd_layers where host=? and repo=? and manifest_digest=? where type=?", host, repository, manifest, "manifest")
 	if err := row.Scan(&entry.Host, &entry.Repository, &entry.ChainID, &entry.ConvertedDigest, &entry.DataSize); err != nil {
 		return nil
 	}
@@ -48,7 +59,7 @@ func (m *sqldb) GetEntryForRepo(ctx context.Context, host string, repository str
 }
 
 func (m *sqldb) GetCrossRepoEntries(ctx context.Context, host string, chainID string) []*Entry {
-	rows, err := m.db.QueryContext(ctx, "select host, repo, chain_id, data_digest, data_size from overlaybd_layers where host=? and chain_id=?", host, chainID)
+	rows, err := m.db.QueryContext(ctx, "select host, repo, chain_id, data_digest, data_size from overlaybd_layers where host=? and chain_id=? where type=?", host, chainID, "layer")
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil
@@ -69,15 +80,25 @@ func (m *sqldb) GetCrossRepoEntries(ctx context.Context, host string, chainID st
 	return entries
 }
 
-func (m *sqldb) CreateEntry(ctx context.Context, host string, repository string, convertedDigest digest.Digest, chainID string, size int64) error {
-	_, err := m.db.ExecContext(ctx, "insert into overlaybd_layers(host, repo, chain_id, data_digest, data_size) values(?, ?, ?, ?, ?)", host, repository, chainID, convertedDigest, size)
+func (m *sqldb) CreateEntry(ctx context.Context, host string, repository string, convertedDigest digest.Digest, chainID string, manifestDigest digest.Digest, size int64, entryType string) error {
+	if entryType != "manifest" && entryType != "layer" {
+		return errors.Errorf("invalid entry type %s", entryType)
+	}
+	_, err := m.db.ExecContext(ctx, "insert into overlaybd_layers(host, repo, chain_id, data_digest, data_size, manifest_digest, type) values(?, ?, ?, ?, ?, ?)", host, repository, chainID, convertedDigest, size, manifestDigest, entryType)
 	return err
 }
 
-func (m *sqldb) DeleteEntry(ctx context.Context, host string, repository string, chainID string) error {
-	_, err := m.db.Exec("delete from overlaybd_layers where host=? and repo=? and chain_id=?", host, repository, chainID)
+func (m *sqldb) DeleteEntry(ctx context.Context, host string, repository string, chainID string, manifest digest.Digest, entryType string) error {
+	var err error
+	if entryType == "manifest" {
+		_, err = m.db.Exec("delete from overlaybd_layers where host=? and repo=? and chain_id=? and type=?", host, repository, chainID, entryType)
+	} else if entryType == "layer" {
+		_, err = m.db.Exec("delete from overlaybd_layers where host=? and repo=? and manifest_digest=? and type=?", host, repository, chainID, manifest, entryType)
+	} else {
+		return errors.Errorf("invalid entry type %s", entryType)
+	}
 	if err != nil {
-		return errors.Wrapf(err, "failed to remove invalid record in db")
+		return fmt.Errorf("failed to remove invalid record in db: %w", err)
 	}
 	return nil
 }

@@ -42,6 +42,16 @@ func (l *localdb) GetEntryForRepo(ctx context.Context, host string, repository s
 	return nil
 }
 
+func (l *localdb) GetEntryForManifest(ctx context.Context, host string, repository string, manifest digest.Digest) *database.Entry {
+	for _, entry := range l.records {
+		if entry.Host == host && entry.ManifestDigest == manifest && entry.Repository == repository {
+			return entry
+		}
+	}
+
+	return nil
+}
+
 func (l *localdb) GetCrossRepoEntries(ctx context.Context, host string, chainID string) []*database.Entry {
 	var entries []*database.Entry
 	for _, entry := range l.records {
@@ -52,18 +62,20 @@ func (l *localdb) GetCrossRepoEntries(ctx context.Context, host string, chainID 
 	return entries
 }
 
-func (l *localdb) CreateEntry(ctx context.Context, host string, repository string, convertedDigest digest.Digest, chainID string, size int64) error {
+func (l *localdb) CreateEntry(ctx context.Context, host string, repository string, convertedDigest digest.Digest, chainID string, manifestDigest digest.Digest, size int64, entryType string) error {
 	l.records = append(l.records, &database.Entry{
 		Host:            host,
 		Repository:      repository,
 		ChainID:         chainID,
 		ConvertedDigest: convertedDigest,
 		DataSize:        size,
+		EntryType:       entryType,
+		ManifestDigest:  manifestDigest,
 	})
 	return nil
 }
 
-func (l *localdb) DeleteEntry(ctx context.Context, host string, repository string, chainID string) error {
+func (l *localdb) DeleteEntry(ctx context.Context, host string, repository string, chainID string, manifest digest.Digest, entryType string) error {
 	// Identify indices of items to be deleted.
 	var indicesToDelete []int
 	for i, entry := range l.records {

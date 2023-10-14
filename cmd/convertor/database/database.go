@@ -23,16 +23,19 @@ import (
 )
 
 type ConversionDatabase interface {
+	GetEntryForManifest(ctx context.Context, host string, repository string, manifest digest.Digest) *Entry
 	GetEntryForRepo(ctx context.Context, host string, repository string, chainID string) *Entry
 	GetCrossRepoEntries(ctx context.Context, host string, chainID string) []*Entry
-	CreateEntry(ctx context.Context, host string, repository string, convertedDigest digest.Digest, chainID string, size int64) error
-	DeleteEntry(ctx context.Context, host string, repository string, chainID string) error
+	CreateEntry(ctx context.Context, host string, repository string, convertedDigest digest.Digest, chainID string, manifestDigest digest.Digest, size int64, entryType string) error
+	DeleteEntry(ctx context.Context, host string, repository string, chainID string, manifest digest.Digest, entryType string) error
 }
 
 type Entry struct {
+	ManifestDigest  digest.Digest // Present when entryType is manifest
 	ConvertedDigest digest.Digest
 	DataSize        int64
 	Repository      string
-	ChainID         string
+	ChainID         string // Present when entryType is layer
 	Host            string
+	EntryType       string // One of "manifest" or "layer"
 }
