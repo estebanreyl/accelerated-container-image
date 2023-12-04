@@ -68,7 +68,7 @@ func Test_overlaybd_builder_CheckForConvertedLayer(t *testing.T) {
 		testingresources.Assert(t, errdefs.IsNotFound(err), fmt.Sprintf("CheckForConvertedLayer() returned an unexpected Error: %v", err))
 	})
 
-	err := base.db.CreateEntry(ctx, e.host, e.repository, targetDesc.Digest, fakeChainId, targetDesc.Size)
+	err := base.db.CreateLayerEntry(ctx, e.host, e.repository, targetDesc.Digest, fakeChainId, targetDesc.Size)
 	if err != nil {
 		t.Error(err)
 	}
@@ -86,7 +86,7 @@ func Test_overlaybd_builder_CheckForConvertedLayer(t *testing.T) {
 
 	base.db = testingresources.NewLocalDB() // Reset DB
 	digestNotInRegistry := digest.FromString("Not in reg")
-	err = base.db.CreateEntry(ctx, e.host, e.repository, digestNotInRegistry, fakeChainId, 10)
+	err = base.db.CreateLayerEntry(ctx, e.host, e.repository, digestNotInRegistry, fakeChainId, 10)
 	if err != nil {
 		t.Error(err)
 	}
@@ -94,7 +94,7 @@ func Test_overlaybd_builder_CheckForConvertedLayer(t *testing.T) {
 	t.Run("Entry in DB but not in registry", func(t *testing.T) {
 		_, err := e.CheckForConvertedLayer(ctx, 0)
 		testingresources.Assert(t, errdefs.IsNotFound(err), fmt.Sprintf("CheckForConvertedLayer() returned an unexpected Error: %v", err))
-		entry := base.db.GetEntryForRepo(ctx, e.host, e.repository, fakeChainId)
+		entry := base.db.GetLayerEntryForRepo(ctx, e.host, e.repository, fakeChainId)
 		testingresources.Assert(t, entry == nil, "CheckForConvertedLayer() Invalid entry was not cleaned up")
 	})
 	// TODO: Cross Repo Mount Scenario

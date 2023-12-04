@@ -173,7 +173,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, idx
 	chainID := e.overlaybdLayers[idx].chainID
 
 	// try to find in the same repo then check existence on registry
-	entry := e.db.GetEntryForRepo(ctx, e.host, e.repository, chainID)
+	entry := e.db.GetLayerEntryForRepo(ctx, e.host, e.repository, chainID)
 	if entry != nil && entry.ChainID != "" {
 		desc := specs.Descriptor{
 			MediaType: e.mediaTypeImageLayer(),
@@ -189,7 +189,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, idx
 		}
 		if errdefs.IsNotFound(err) {
 			// invalid record in db, which is not found in registry, remove it
-			err := e.db.DeleteEntry(ctx, e.host, e.repository, chainID)
+			err := e.db.DeleteLayerEntry(ctx, e.host, e.repository, chainID)
 			if err != nil {
 				return specs.Descriptor{}, err
 			}
@@ -197,7 +197,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, idx
 	}
 
 	// found record in other repos, try mounting it to the target repo
-	entries := e.db.GetCrossRepoEntries(ctx, e.host, chainID)
+	entries := e.db.GetCrossRepoLayerEntries(ctx, e.host, chainID)
 	for _, entry := range entries {
 		desc := specs.Descriptor{
 			MediaType: e.mediaTypeImageLayer(),
@@ -212,7 +212,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, idx
 		if errdefs.IsAlreadyExists(err) {
 			desc.Annotations = nil
 
-			if err := e.db.CreateEntry(ctx, e.host, e.repository, entry.ConvertedDigest, chainID, entry.DataSize); err != nil {
+			if err := e.db.CreateLayerEntry(ctx, e.host, e.repository, entry.ConvertedDigest, chainID, entry.DataSize); err != nil {
 				continue // try a different repo if available
 			}
 
@@ -226,11 +226,81 @@ func (e *overlaybdBuilderEngine) CheckForConvertedLayer(ctx context.Context, idx
 	return specs.Descriptor{}, errdefs.ErrNotFound
 }
 
+// If manifest is already converted, avoid conversion. (Tag reuse for example or cross repo mounts)
+func (e *overlaybdBuilderEngine) CheckForConvertedManifest(ctx context.Context) (specs.Descriptor, error) {
+	if e.db == nil {
+		return specs.Descriptor{}, errdefs.ErrNotFound
+	}
+
+	// try to find in the same repo then check existence on registry
+	entry := e.db.GetManifestEntryForRepo(ctx, e.host, e.repository, e.inputDesc.Digest)
+	if entry != nil && entry.ConvertedDigest != "" {
+		convertedDesc := specs.Descriptor{
+			MediaType: e.mediaTypeImageLayer(),
+			Digest:    entry.ConvertedDigest,
+			Size:      entry.DataSize,
+		}
+		rc, err := e.fetcher.Fetch(ctx, convertedDesc)
+
+		if err == nil {
+			rc.Close()
+			logrus.Infof("manifest %s found in remote with resulting digest %s", e.inputDesc.Digest, convertedDesc.Digest)
+			return convertedDesc, nil
+		}
+		if errdefs.IsNotFound(err) {
+			// invalid record in db, which is not found in registry, remove it
+			err := e.db.DeleteManifestEntry(ctx, e.host, e.repository, e.inputDesc.Digest)
+			if err != nil {
+				return specs.Descriptor{}, err
+			}
+		}
+	}
+	// TODO: check for mediatype mismatch and correct it if possible, ignore during testing.
+	// found record in other repos, try mounting it to the target repo
+	entries := e.db.GetCrossRepoManifestEntries(ctx, e.host, e.inputDesc.Digest)
+	for _, entry := range entries {
+		convertedDesc := specs.Descriptor{
+			MediaType: e.mediaTypeManifest(),
+			Digest:    entry.ConvertedDigest,
+			Size:      entry.DataSize,
+			Annotations: map[string]string{
+				fmt.Sprintf("%s.%s", labelDistributionSource, e.host): entry.Repository,
+			},
+		}
+
+		_, err := e.pusher.Push(ctx, convertedDesc)
+		if errdefs.IsAlreadyExists(err) {
+			convertedDesc.Annotations = nil
+
+			if err := e.db.CreateManifestEntry(ctx, e.host, e.repository, e.inputDesc.Digest, convertedDesc.Digest, entry.DataSize); err != nil {
+				continue // try a different repo if available
+			}
+
+			logrus.Infof("manifest %s mount from %s was successful", e.inputDesc.Digest, entry.Repository)
+			logrus.Infof("manifest %s conversion found in remote with digest %s", e.inputDesc.Digest, convertedDesc.Digest)
+			return convertedDesc, nil
+		}
+	}
+
+	logrus.Infof("manifest %s not found already converted in remote", e.inputDesc.Digest)
+	return specs.Descriptor{}, errdefs.ErrNotFound
+}
+
+func (e *overlaybdBuilderEngine) StoreConvertedManifestDetails(ctx context.Context) error {
+	if e.db == nil {
+		return nil
+	}
+	if e.outputDesc.Digest == "" {
+		return errors.New("manifest not converted yet")
+	}
+	return e.db.CreateManifestEntry(ctx, e.host, e.repository, e.inputDesc.Digest, e.outputDesc.Digest, e.outputDesc.Size)
+}
+
 func (e *overlaybdBuilderEngine) StoreConvertedLayerDetails(ctx context.Context, idx int) error {
 	if e.db == nil {
 		return nil
 	}
-	return e.db.CreateEntry(ctx, e.host, e.repository, e.overlaybdLayers[idx].desc.Digest, e.overlaybdLayers[idx].chainID, e.overlaybdLayers[idx].desc.Size)
+	return e.db.CreateLayerEntry(ctx, e.host, e.repository, e.overlaybdLayers[idx].desc.Digest, e.overlaybdLayers[idx].chainID, e.overlaybdLayers[idx].desc.Size)
 }
 
 func (e *overlaybdBuilderEngine) DownloadConvertedLayer(ctx context.Context, idx int, desc specs.Descriptor) error {

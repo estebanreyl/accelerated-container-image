@@ -27,6 +27,7 @@ import (
 	"github.com/containerd/containerd/remotes"
 	"github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -49,6 +50,13 @@ type builderEngine interface {
 	// UploadImage upload new manifest and config
 	UploadImage(ctx context.Context) error
 
+	// Cleanup removes workdir
+	Cleanup()
+
+	Deduplicateable
+}
+
+type Deduplicateable interface {
 	// deduplication functions
 	// finds already converted layer in db and validates presence in registry
 	CheckForConvertedLayer(ctx context.Context, idx int) (specs.Descriptor, error)
@@ -59,8 +67,11 @@ type builderEngine interface {
 	// store chainID -> converted layer mapping for deduplication
 	StoreConvertedLayerDetails(ctx context.Context, idx int) error
 
-	// Cleanup removes workdir
-	Cleanup()
+	// store manifest digest -> converted manifest to avoid re-conversion
+	CheckForConvertedManifest(ctx context.Context) (specs.Descriptor, error)
+
+	// store manifest digest -> converted manifest to avoid re-conversion
+	StoreConvertedManifestDetails(ctx context.Context) error
 }
 
 type builderEngineBase struct {
@@ -74,6 +85,9 @@ type builderEngineBase struct {
 	db         database.ConversionDatabase
 	host       string
 	repository string
+	inputDesc  v1.Descriptor // original manifest descriptor
+	outputDesc v1.Descriptor // converted manifest descriptor
+
 }
 
 func (e *builderEngineBase) isGzipLayer(ctx context.Context, idx int) (bool, error) {
@@ -158,7 +172,7 @@ func (e *builderEngineBase) uploadManifestAndConfig(ctx context.Context) error {
 		return errors.Wrapf(err, "failed to upload manifest")
 	}
 	logrus.Infof("manifest uploaded")
-
+	e.outputDesc = manifestDesc
 	return nil
 }
 
@@ -180,9 +194,10 @@ func getBuilderEngineBase(ctx context.Context, resolver remotes.Resolver, ref, t
 		return nil, errors.Wrap(err, "failed to fetch manifest and config")
 	}
 	return &builderEngineBase{
-		fetcher:  fetcher,
-		pusher:   pusher,
-		manifest: *manifest,
-		config:   *config,
+		fetcher:   fetcher,
+		pusher:    pusher,
+		manifest:  *manifest,
+		config:    *config,
+		inputDesc: desc,
 	}, nil
 }
