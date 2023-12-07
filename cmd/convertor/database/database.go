@@ -24,16 +24,16 @@ import (
 
 type ConversionDatabase interface {
 	// Layer Entries
-	CreateLayerEntry(ctx context.Context, host string, repository string, convertedDigest digest.Digest, chainID string, size int64) error
-	GetLayerEntryForRepo(ctx context.Context, host string, repository string, chainID string) *LayerEntry
-	GetCrossRepoLayerEntries(ctx context.Context, host string, chainID string) []*LayerEntry
-	DeleteLayerEntry(ctx context.Context, host string, repository string, chainID string) error
+	CreateLayerEntry(ctx context.Context, host, repository string, convertedDigest digest.Digest, chainID string, size int64) error
+	GetLayerEntryForRepo(ctx context.Context, host, repository, chainID string) *LayerEntry
+	GetCrossRepoLayerEntries(ctx context.Context, host, chainID string) []*LayerEntry
+	DeleteLayerEntry(ctx context.Context, host, repository, chainID string) error
 
 	// Manifest Entries
-	CreateManifestEntry(ctx context.Context, host string, repository string, original digest.Digest, convertedDigest digest.Digest, size int64) error
-	GetManifestEntryForRepo(ctx context.Context, host string, repository string, original digest.Digest) *ManifestEntry
-	GetCrossRepoManifestEntries(ctx context.Context, host string, original digest.Digest) []*ManifestEntry
-	DeleteManifestEntry(ctx context.Context, host string, repository string, original digest.Digest) error
+	CreateManifestEntry(ctx context.Context, host, repository, mediatype string, original, convertedDigest digest.Digest, size int64) error
+	GetManifestEntryForRepo(ctx context.Context, host, repository, mediatype string, original digest.Digest) *ManifestEntry
+	GetCrossRepoManifestEntries(ctx context.Context, host, mediatype string, original digest.Digest) []*ManifestEntry
+	DeleteManifestEntry(ctx context.Context, host, repository, mediatype string, original digest.Digest) error
 }
 
 type LayerEntry struct {
@@ -50,4 +50,5 @@ type ManifestEntry struct {
 	DataSize        int64
 	Repository      string
 	Host            string
+	MediaType       string
 }

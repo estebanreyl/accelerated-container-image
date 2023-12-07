@@ -80,6 +80,21 @@ CREATE TABLE `overlaybd_layers` (
 ) DEFAULT CHARSET=utf8;
 ```
 
+If you also need caching for manifests to avoid reconverting the same manifest twice, you can create the `overlaybd_manifests` table, the table schema is as follows:
+
+```sql
+CREATE TABLE `overlaybd_manifests` (
+  `host` varchar(255) NOT NULL,
+  `repo` varchar(255) NOT NULL,
+  `src_digest` varchar(255) NOT NULL COMMENT 'chain-id of the normal image manifest',
+  `out_digest` varchar(255) NOT NULL COMMENT 'digest of overlaybd manifest',
+  `media_type` ENUM('application/vnd.docker.distribution.manifest.v2+json','application/vnd.oci.image.manifest.v1+json') NOT NULL COMMENT 'mediatype of the manifest',
+  `data_size` bigint(20) NOT NULL COMMENT 'size of overlaybd manifest',
+  PRIMARY KEY (`host`,`repo`,`src_digest`),
+  KEY `index_registry_src_digest` (`host`,`src_digest`) USING BTREE
+) DEFAULT CHARSET=utf8;
+```
+
 with this database you can then provide the following flags:
 
 ```bash

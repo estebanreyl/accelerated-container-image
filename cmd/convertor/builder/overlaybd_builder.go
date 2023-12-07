@@ -233,7 +233,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedManifest(ctx context.Context) 
 	}
 
 	// try to find in the same repo then check existence on registry
-	entry := e.db.GetManifestEntryForRepo(ctx, e.host, e.repository, e.inputDesc.Digest)
+	entry := e.db.GetManifestEntryForRepo(ctx, e.host, e.repository, e.mediaTypeManifest(), e.inputDesc.Digest)
 	if entry != nil && entry.ConvertedDigest != "" {
 		convertedDesc := specs.Descriptor{
 			MediaType: e.mediaTypeImageLayer(),
@@ -249,7 +249,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedManifest(ctx context.Context) 
 		}
 		if errdefs.IsNotFound(err) {
 			// invalid record in db, which is not found in registry, remove it
-			err := e.db.DeleteManifestEntry(ctx, e.host, e.repository, e.inputDesc.Digest)
+			err := e.db.DeleteManifestEntry(ctx, e.host, e.repository, e.mediaTypeManifest(), e.inputDesc.Digest)
 			if err != nil {
 				return specs.Descriptor{}, err
 			}
@@ -257,7 +257,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedManifest(ctx context.Context) 
 	}
 	// TODO: check for mediatype mismatch and correct it if possible, ignore during testing.
 	// found record in other repos, try mounting it to the target repo
-	entries := e.db.GetCrossRepoManifestEntries(ctx, e.host, e.inputDesc.Digest)
+	entries := e.db.GetCrossRepoManifestEntries(ctx, e.host, e.mediaTypeManifest(), e.inputDesc.Digest)
 	for _, entry := range entries {
 		convertedDesc := specs.Descriptor{
 			MediaType: e.mediaTypeManifest(),
@@ -272,7 +272,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedManifest(ctx context.Context) 
 		if errdefs.IsAlreadyExists(err) {
 			convertedDesc.Annotations = nil
 
-			if err := e.db.CreateManifestEntry(ctx, e.host, e.repository, e.inputDesc.Digest, convertedDesc.Digest, entry.DataSize); err != nil {
+			if err := e.db.CreateManifestEntry(ctx, e.host, e.repository, e.mediaTypeManifest(), e.inputDesc.Digest, convertedDesc.Digest, entry.DataSize); err != nil {
 				continue // try a different repo if available
 			}
 
@@ -293,7 +293,7 @@ func (e *overlaybdBuilderEngine) StoreConvertedManifestDetails(ctx context.Conte
 	if e.outputDesc.Digest == "" {
 		return errors.New("manifest not converted yet")
 	}
-	return e.db.CreateManifestEntry(ctx, e.host, e.repository, e.inputDesc.Digest, e.outputDesc.Digest, e.outputDesc.Size)
+	return e.db.CreateManifestEntry(ctx, e.host, e.repository, e.mediaTypeManifest(), e.inputDesc.Digest, e.outputDesc.Digest, e.outputDesc.Size)
 }
 
 func (e *overlaybdBuilderEngine) StoreConvertedLayerDetails(ctx context.Context, idx int) error {

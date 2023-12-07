@@ -60,7 +60,7 @@ func (l *localdb) GetLayerEntryForRepo(ctx context.Context, host string, reposit
 	return nil
 }
 
-func (l *localdb) GetCrossRepoLayerEntries(ctx context.Context, host string, chainID string) []*database.LayerEntry {
+func (l *localdb) GetCrossRepoLayerEntries(ctx context.Context, host, chainID string) []*database.LayerEntry {
 	l.layerLock.Lock()
 	defer l.layerLock.Unlock()
 	var entries []*database.LayerEntry
@@ -72,7 +72,7 @@ func (l *localdb) GetCrossRepoLayerEntries(ctx context.Context, host string, cha
 	return entries
 }
 
-func (l *localdb) DeleteLayerEntry(ctx context.Context, host string, repository string, chainID string) error {
+func (l *localdb) DeleteLayerEntry(ctx context.Context, host, repository, chainID string) error {
 	l.layerLock.Lock()
 	defer l.layerLock.Unlock()
 	// host - repo - chainID should be unique
@@ -85,7 +85,7 @@ func (l *localdb) DeleteLayerEntry(ctx context.Context, host string, repository 
 	return nil // No error if entry not found
 }
 
-func (l *localdb) CreateManifestEntry(ctx context.Context, host string, repository string, original digest.Digest, convertedDigest digest.Digest, size int64) error {
+func (l *localdb) CreateManifestEntry(ctx context.Context, host, repository, mediaType string, original, convertedDigest digest.Digest, size int64) error {
 	l.manifestLock.Lock()
 	defer l.manifestLock.Unlock()
 	l.manifestRecords = append(l.manifestRecords, &database.ManifestEntry{
@@ -94,39 +94,40 @@ func (l *localdb) CreateManifestEntry(ctx context.Context, host string, reposito
 		OriginalDigest:  original,
 		ConvertedDigest: convertedDigest,
 		DataSize:        size,
+		MediaType:       mediaType,
 	})
 	return nil
 }
 
-func (l *localdb) GetManifestEntryForRepo(ctx context.Context, host string, repository string, original digest.Digest) *database.ManifestEntry {
+func (l *localdb) GetManifestEntryForRepo(ctx context.Context, host, repository, mediaType string, original digest.Digest) *database.ManifestEntry {
 	l.manifestLock.Lock()
 	defer l.manifestLock.Unlock()
 	for _, entry := range l.manifestRecords {
-		if entry.Host == host && entry.OriginalDigest == original && entry.Repository == repository {
+		if entry.Host == host && entry.OriginalDigest == original && entry.Repository == repository && entry.MediaType == mediaType {
 			return entry
 		}
 	}
 	return nil
 }
 
-func (l *localdb) GetCrossRepoManifestEntries(ctx context.Context, host string, original digest.Digest) []*database.ManifestEntry {
+func (l *localdb) GetCrossRepoManifestEntries(ctx context.Context, host, mediaType string, original digest.Digest) []*database.ManifestEntry {
 	l.manifestLock.Lock()
 	defer l.manifestLock.Unlock()
 	var entries []*database.ManifestEntry
 	for _, entry := range l.manifestRecords {
-		if entry.Host == host && entry.OriginalDigest == original {
+		if entry.Host == host && entry.OriginalDigest == original && entry.MediaType == mediaType {
 			entries = append(entries, entry)
 		}
 	}
 	return entries
 }
 
-func (l *localdb) DeleteManifestEntry(ctx context.Context, host string, repository string, original digest.Digest) error {
+func (l *localdb) DeleteManifestEntry(ctx context.Context, host, repository, mediaType string, original digest.Digest) error {
 	l.manifestLock.Lock()
 	defer l.manifestLock.Unlock()
 	// Identify indices of items to be deleted.
 	for i, entry := range l.manifestRecords {
-		if entry.Host == host && entry.OriginalDigest == original && entry.Repository == repository {
+		if entry.Host == host && entry.OriginalDigest == original && entry.Repository == repository && entry.MediaType == mediaType {
 			l.manifestRecords = append(l.manifestRecords[:i], l.manifestRecords[i+1:]...)
 		}
 	}
