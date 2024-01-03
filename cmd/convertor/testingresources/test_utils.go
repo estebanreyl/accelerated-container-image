@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/containerd/accelerated-container-image/cmd/convertor/localregistry"
 	"github.com/containerd/containerd/pkg/testutil"
 	"github.com/containerd/containerd/remotes"
 )
@@ -37,11 +38,12 @@ func GetLocalRegistryPath() string {
 
 // GetTestRegistry returns a TestRegistry with the specified options. If opts.LocalRegistryPath is not specified,
 // the default local registry path will be used.
-func GetTestRegistry(t *testing.T, ctx context.Context, opts RegistryOptions) *TestRegistry {
+func GetTestRegistry(t *testing.T, ctx context.Context, opts localregistry.RegistryOptions) *localregistry.LocalRegistry {
 	if opts.LocalRegistryPath == "" {
 		opts.LocalRegistryPath = GetLocalRegistryPath()
 	}
-	reg, err := NewTestRegistry(ctx, opts)
+	opts.IsTestingRegistry = true
+	reg, err := localregistry.NewLocalRegistry(ctx, opts)
 	if err != nil {
 		t.Error(err)
 	}
@@ -50,15 +52,15 @@ func GetTestRegistry(t *testing.T, ctx context.Context, opts RegistryOptions) *T
 
 func GetTestResolver(t *testing.T, ctx context.Context) remotes.Resolver {
 	localRegistryPath := GetLocalRegistryPath()
-	resolver, err := NewMockLocalResolver(ctx, localRegistryPath)
+	resolver, err := localregistry.NewMockLocalResolver(ctx, localRegistryPath)
 	if err != nil {
 		t.Error(err)
 	}
 	return resolver
 }
 
-func GetCustomTestResolver(t *testing.T, ctx context.Context, testRegistry *TestRegistry) remotes.Resolver {
-	resolver, err := NewCustomMockLocalResolver(ctx, testRegistry)
+func GetCustomTestResolver(t *testing.T, ctx context.Context, testRegistry *localregistry.LocalRegistry) remotes.Resolver {
+	resolver, err := localregistry.NewLocalResolver(ctx, testRegistry)
 	if err != nil {
 		t.Error(err)
 	}

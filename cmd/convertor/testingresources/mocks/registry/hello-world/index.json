@@ -2,31 +2,15 @@
     "schemaVersion": 2,
     "manifests": [
         {
-            "mediaType": "application/vnd.docker.distribution.manifest.list.v2+json",
-            "digest": "sha256:726023f73a8fc5103fa6776d48090539042cb822531c6b751b1f6dd18cb5705d",
-            "size": 2069,
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:2d4e459f4ecb5329407ae3e47cbc107a2fbace221354ca75960af4c047b3cb13",
+            "size": 863,
             "annotations": {
-                "org.opencontainers.image.ref.name": "docker-list"
-            }
-        },
-        {
-            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
-            "digest": "sha256:7e9b6e7ba2842c91cf49f3e214d04a7a496f8214356f41d81a6e6dcad11f11e3",
-            "size": 525,
-            "annotations": {
-                "org.opencontainers.image.ref.name": "amd64"
-            },
-            "platform": {
-                "architecture": "amd64",
-                "os": "linux"
-            }
-        },
-        {
-            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
-            "digest": "sha256:efebf0f7aee69450f99deafe11121afa720abed733943e50581a9dc7540689c8",
-            "size": 525,
-            "annotations": {
-                "org.opencontainers.image.ref.name": "arm64"
+                "org.opencontainers.image.ref.name": "arm64",
+                "org.opencontainers.image.revision": "3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee",
+                "org.opencontainers.image.source": "https://github.com/docker-library/hello-world.git#3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee:arm64v8/hello-world",
+                "org.opencontainers.image.url": "https://hub.docker.com/_/hello-world",
+                "org.opencontainers.image.version": "linux"
             },
             "platform": {
                 "architecture": "arm64",
@@ -35,27 +19,235 @@
             }
         },
         {
-            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
-            "digest": "sha256:06bca41ba617acf0b3644df05d0d9c2d2f82ccaab629c0e39792b24682970040",
-            "size": 525,
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:642d696e0dcf917a34d047e6e053f109bfcd777cd65d2048bc8c5df58715b203",
+            "size": 996,
+            "annotations": {
+                "org.opencontainers.image.ref.name": "arm64-converted"
+            }
+        },
+        {
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "digest": "sha256:341ba6b5211038e9d7253263237636996d19fbf4845e78d3946a8a9f3d0f550f",
+            "size": 8633,
+            "annotations": {
+                "org.opencontainers.image.ref.name": "docker-list"
+            }
+        },
+        {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:1392516bb093815c93426684b42ef215cfbcf15575001aaa7d9da1fea3e251de",
+            "size": 994,
+            "annotations": {
+                "org.opencontainers.image.ref.name": "amd64-converted"
+            }
+        },
+        {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:e2fc4e5012d16e7fe466f5291c476431beaa1f9b90a5c2125b493ed28e2aba57",
+            "size": 861,
+            "annotations": {
+                "org.opencontainers.image.ref.name": "amd64",
+                "org.opencontainers.image.revision": "3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee",
+                "org.opencontainers.image.source": "https://github.com/docker-library/hello-world.git#3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee:amd64/hello-world",
+                "org.opencontainers.image.url": "https://hub.docker.com/_/hello-world",
+                "org.opencontainers.image.version": "linux"
+            },
             "platform": {
-                "architecture": "mips64le",
+                "architecture": "amd64",
                 "os": "linux"
             }
         },
         {
-            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
-            "digest": "sha256:fbe0ff1e7697da39d987a975c737a7d2fa40b6e7f7f40c00b1dcc387b9ac0e85",
-            "size": 525,
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:838d191bca398e46cddebc48e816da83b0389d4ed2d64f408d618521b8fd1a57",
+            "size": 837,
+            "annotations": {
+                "vnd.docker.reference.digest": "sha256:f0c95f1ebb50c9b0b3e3416fb9dd4d1d197386a076c464cceea3d1f94c321b8f",
+                "vnd.docker.reference.type": "attestation-manifest"
+            },
+            "platform": {
+                "architecture": "unknown",
+                "os": "unknown"
+            }
+        },
+        {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:f0c95f1ebb50c9b0b3e3416fb9dd4d1d197386a076c464cceea3d1f94c321b8f",
+            "size": 863,
+            "annotations": {
+                "org.opencontainers.image.revision": "3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee",
+                "org.opencontainers.image.source": "https://github.com/docker-library/hello-world.git#3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee:ppc64le/hello-world",
+                "org.opencontainers.image.url": "https://hub.docker.com/_/hello-world",
+                "org.opencontainers.image.version": "linux"
+            },
             "platform": {
                 "architecture": "ppc64le",
                 "os": "linux"
             }
         },
         {
-            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
-            "digest": "sha256:084c3bdd1271adc754e2c5f6ba7046f1a2c099597dbd9643592fa8eb99981402",
-            "size": 525,
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:579b3724a7b189f6dca599a46f16d801a43d5def185de0b7bcd5fb9d1e312c27",
+            "size": 837,
+            "annotations": {
+                "vnd.docker.reference.digest": "sha256:e2fc4e5012d16e7fe466f5291c476431beaa1f9b90a5c2125b493ed28e2aba57",
+                "vnd.docker.reference.type": "attestation-manifest"
+            },
+            "platform": {
+                "architecture": "unknown",
+                "os": "unknown"
+            }
+        },
+        {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:951bcd144ddccd1ee902dc180b435faabaaa6a8747e70cbc893f2dca16badb94",
+            "size": 566,
+            "annotations": {
+                "vnd.docker.reference.digest": "sha256:c19784034d46da48550487c5c44639f5f92d48be7b9baf4d67b5377a454d92af",
+                "vnd.docker.reference.type": "attestation-manifest"
+            },
+            "platform": {
+                "architecture": "unknown",
+                "os": "unknown"
+            }
+        },
+        {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:65f4b0d1802589b418bb6774d85de3d1a11d5bd971ee73cb8569504d928bb5d9",
+            "size": 861,
+            "annotations": {
+                "org.opencontainers.image.revision": "3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee",
+                "org.opencontainers.image.source": "https://github.com/docker-library/hello-world.git#3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee:s390x/hello-world",
+                "org.opencontainers.image.url": "https://hub.docker.com/_/hello-world",
+                "org.opencontainers.image.version": "linux"
+            },
+            "platform": {
+                "architecture": "s390x",
+                "os": "linux"
+            }
+        },
+        {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:8d064a6fc27fd5e97fa8225994a1addd872396236367745bea30c92d6c032fa3",
+            "size": 863,
+            "annotations": {
+                "org.opencontainers.image.revision": "3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee",
+                "org.opencontainers.image.source": "https://github.com/docker-library/hello-world.git#3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee:riscv64/hello-world",
+                "org.opencontainers.image.url": "https://hub.docker.com/_/hello-world",
+                "org.opencontainers.image.version": "linux"
+            },
+            "platform": {
+                "architecture": "riscv64",
+                "os": "linux"
+            }
+        },
+        {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:18b1c92de36d42c75440c6fd6b25605cc91709d176faaccca8afe58b317bc33a",
+            "size": 566,
+            "annotations": {
+                "vnd.docker.reference.digest": "sha256:dbbd3cf666311ad526fad9d1746177469268f32fd91b371df2ebd1c84eb22f23",
+                "vnd.docker.reference.type": "attestation-manifest"
+            },
+            "platform": {
+                "architecture": "unknown",
+                "os": "unknown"
+            }
+        },
+        {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:48147407c4594e45b7c3f0be1019bb0f44d78d7f037ce63e0e3da75b256f849e",
+            "size": 837,
+            "annotations": {
+                "vnd.docker.reference.digest": "sha256:8d064a6fc27fd5e97fa8225994a1addd872396236367745bea30c92d6c032fa3",
+                "vnd.docker.reference.type": "attestation-manifest"
+            },
+            "platform": {
+                "architecture": "unknown",
+                "os": "unknown"
+            }
+        },
+        {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:50f420e8710676da03668e446f1f51097b745e3e2c9807b018e569d26d4f65f7",
+            "size": 837,
+            "annotations": {
+                "vnd.docker.reference.digest": "sha256:65f4b0d1802589b418bb6774d85de3d1a11d5bd971ee73cb8569504d928bb5d9",
+                "vnd.docker.reference.type": "attestation-manifest"
+            },
+            "platform": {
+                "architecture": "unknown",
+                "os": "unknown"
+            }
+        },
+        {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:6901d6a88eee6e90f0baa62b020bb61c4f13194cbcd9bf568ab66e8cc3f940dd",
+            "size": 566,
+            "annotations": {
+                "vnd.docker.reference.digest": "sha256:c2d891e5c2fb4c723efb72b064be3351189f62222bd3681ce7e57f2a1527362c",
+                "vnd.docker.reference.type": "attestation-manifest"
+            },
+            "platform": {
+                "architecture": "unknown",
+                "os": "unknown"
+            }
+        },
+        {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:70304c314d8a61ba1b36518624bb00bfff8d4b6016153792042de43f0453ca61",
+            "size": 837,
+            "annotations": {
+                "vnd.docker.reference.digest": "sha256:20aea1c63c90d5e117db787c9fe1a8cd0ad98bedb5fd711273ffe05c084ff18a",
+                "vnd.docker.reference.type": "attestation-manifest"
+            },
+            "platform": {
+                "architecture": "unknown",
+                "os": "unknown"
+            }
+        },
+        {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:dbbd3cf666311ad526fad9d1746177469268f32fd91b371df2ebd1c84eb22f23",
+            "size": 860,
+            "annotations": {
+                "org.opencontainers.image.revision": "3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee",
+                "org.opencontainers.image.source": "https://github.com/docker-library/hello-world.git#3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee:i386/hello-world",
+                "org.opencontainers.image.url": "https://hub.docker.com/_/hello-world",
+                "org.opencontainers.image.version": "linux"
+            },
+            "platform": {
+                "architecture": "386",
+                "os": "linux"
+            }
+        },
+        {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:20aea1c63c90d5e117db787c9fe1a8cd0ad98bedb5fd711273ffe05c084ff18a",
+            "size": 863,
+            "annotations": {
+                "org.opencontainers.image.revision": "3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee",
+                "org.opencontainers.image.source": "https://github.com/docker-library/hello-world.git#3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee:arm32v7/hello-world",
+                "org.opencontainers.image.url": "https://hub.docker.com/_/hello-world",
+                "org.opencontainers.image.version": "linux"
+            },
+            "platform": {
+                "architecture": "arm",
+                "os": "linux",
+                "variant": "v7"
+            }
+        },
+        {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:c2d891e5c2fb4c723efb72b064be3351189f62222bd3681ce7e57f2a1527362c",
+            "size": 863,
+            "annotations": {
+                "org.opencontainers.image.revision": "3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee",
+                "org.opencontainers.image.source": "https://github.com/docker-library/hello-world.git#3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee:arm32v5/hello-world",
+                "org.opencontainers.image.url": "https://hub.docker.com/_/hello-world",
+                "org.opencontainers.image.version": "linux"
+            },
             "platform": {
                 "architecture": "arm",
                 "os": "linux",
@@ -63,40 +255,31 @@
             }
         },
         {
-            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
-            "digest": "sha256:004d23c66201b22fce069b7505756f17088de7889c83891e9bc69d749fa3690e",
-            "size": 525,
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:c19784034d46da48550487c5c44639f5f92d48be7b9baf4d67b5377a454d92af",
+            "size": 864,
+            "annotations": {
+                "org.opencontainers.image.revision": "3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee",
+                "org.opencontainers.image.source": "https://github.com/docker-library/hello-world.git#3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee:mips64le/hello-world",
+                "org.opencontainers.image.url": "https://hub.docker.com/_/hello-world",
+                "org.opencontainers.image.version": "linux"
+            },
             "platform": {
-                "architecture": "386",
+                "architecture": "mips64le",
                 "os": "linux"
             }
         },
         {
-            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
-            "digest": "sha256:72ba79e34f1baa40cd4d9ecd684b8389d0a1e18cf6e6d5c44c19716d25f65e20",
-            "size": 525,
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:1f11fbd1720fcae3e402fc3eecb7d57c67023d2d1e11becc99ad9c7fe97d65ca",
+            "size": 837,
+            "annotations": {
+                "vnd.docker.reference.digest": "sha256:2d4e459f4ecb5329407ae3e47cbc107a2fbace221354ca75960af4c047b3cb13",
+                "vnd.docker.reference.type": "attestation-manifest"
+            },
             "platform": {
-                "architecture": "riscv64",
-                "os": "linux"
-            }
-        },
-        {
-            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
-            "digest": "sha256:574efe68740d3bee2ef780036aee2e2da5cf7097ac06513f9f01f41e03365399",
-            "size": 525,
-            "platform": {
-                "architecture": "s390x",
-                "os": "linux"
-            }
-        },
-        {
-            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
-            "digest": "sha256:a0a386314d69d1514d7aa63d12532b284bf37bba15ed7b4fc1a3f86605f86c63",
-            "size": 525,
-            "platform": {
-                "architecture": "arm",
-                "os": "linux",
-                "variant": "v7"
+                "architecture": "unknown",
+                "os": "unknown"
             }
         }
     ]

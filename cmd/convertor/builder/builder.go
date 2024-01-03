@@ -30,7 +30,9 @@ import (
 	"time"
 
 	"github.com/containerd/accelerated-container-image/cmd/convertor/database"
+	"github.com/containerd/accelerated-container-image/cmd/convertor/localregistry"
 	"github.com/containerd/containerd/reference"
+	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
@@ -43,15 +45,17 @@ type Builder interface {
 }
 
 type BuilderOptions struct {
-	Ref       string
-	TargetRef string
-	Auth      string
-	PlainHTTP bool
-	WorkDir   string
-	OCI       bool
-	Mkfs      bool
-	DB        database.ConversionDatabase
-	Engine    BuilderEngineType
+	Ref           string
+	TargetRef     string
+	Auth          string
+	PlainHTTP     bool
+	WorkDir       string
+	OCI           bool
+	Mkfs          bool
+	DB            database.ConversionDatabase
+	ResolverType  Resolver
+	OciLayoutPath string
+	Engine        BuilderEngineType
 	CertOption
 }
 
@@ -60,6 +64,13 @@ type overlaybdBuilder struct {
 	config v1.Image
 	engine builderEngine
 }
+
+type Resolver int
+
+const (
+	LocalResolver Resolver = iota
+	DockerResolver
+)
 
 func NewOverlayBDBuilder(ctx context.Context, opt BuilderOptions) (Builder, error) {
 	tlsConfig, err := loadTLSConfig(opt.CertOption)
@@ -79,18 +90,38 @@ func NewOverlayBDBuilder(ctx context.Context, opt BuilderOptions) (Builder, erro
 		TLSClientConfig:       tlsConfig,
 		ExpectContinueTimeout: 5 * time.Second,
 	}
-	resolver := docker.NewResolver(docker.ResolverOptions{
-		Credentials: func(s string) (string, string, error) {
-			if i := strings.IndexByte(opt.Auth, ':'); i > 0 {
-				return opt.Auth[0:i], opt.Auth[i+1:], nil
-			}
-			return "", "", nil
-		},
-		PlainHTTP: opt.PlainHTTP,
-		Client: &http.Client{
-			Transport: transport,
-		},
-	})
+	var resolver remotes.Resolver
+
+	switch opt.ResolverType {
+	case LocalResolver:
+		opts := localregistry.RegistryOptions{
+			LocalRegistryPath: opt.OciLayoutPath,
+		}
+		localreg, err := localregistry.NewLocalRegistry(ctx, opts)
+		if err != nil {
+			return nil, fmt.Errorf("Could not open provided oci Layout: %w", err)
+		}
+		resolver, err = localregistry.NewLocalResolver(ctx, localreg)
+		if err != nil {
+			return nil, fmt.Errorf("Could not initialize local resolver: %w", err)
+		}
+	case DockerResolver:
+		resolver = docker.NewResolver(docker.ResolverOptions{
+			Credentials: func(s string) (string, string, error) {
+				if i := strings.IndexByte(opt.Auth, ':'); i > 0 {
+					return opt.Auth[0:i], opt.Auth[i+1:], nil
+				}
+				return "", "", nil
+			},
+			PlainHTTP: opt.PlainHTTP,
+			Client: &http.Client{
+				Transport: transport,
+			},
+		})
+	default:
+		return nil, errors.New("Invalid Resolver Type Specified")
+	}
+
 	engineBase, err := getBuilderEngineBase(ctx, resolver, opt.Ref, opt.TargetRef)
 	if err != nil {
 		return nil, err

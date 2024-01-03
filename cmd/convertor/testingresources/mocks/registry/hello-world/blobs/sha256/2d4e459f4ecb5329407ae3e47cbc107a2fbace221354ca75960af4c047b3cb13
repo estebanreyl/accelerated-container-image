@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+  "config": {
+    "mediaType": "application/vnd.oci.image.config.v1+json",
+    "digest": "sha256:ee301c921b8aadc002973b2e0c3da17d701dcd994b606769a7e6eaa100b81d44",
+    "size": 581
+  },
+  "layers": [
+    {
+      "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:478afc9190022e867bb857b1a25cc5abc7678287af6cb930562ec25be709f1b7",
+      "size": 3195
+    }
+  ],
+  "annotations": {
+    "org.opencontainers.image.revision": "3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee",
+    "org.opencontainers.image.source": "https://github.com/docker-library/hello-world.git#3fb6ebca4163bf5b9cc496ac3e8f11cb1e754aee:arm64v8/hello-world",
+    "org.opencontainers.image.url": "https://hub.docker.com/_/hello-world",
+    "org.opencontainers.image.version": "linux"
+  }
+}

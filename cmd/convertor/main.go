@@ -45,6 +45,7 @@ var (
 	overlaybd string
 	dbstr     string
 	dbType    string
+	ocilayout string
 
 	// certification
 	certDirs    []string
@@ -90,6 +91,14 @@ var (
 					Insecure:    insecure,
 				},
 			}
+			if ocilayout != "" {
+				opt.ResolverType = builder.LocalResolver
+				opt.OciLayoutPath = ocilayout
+
+			} else {
+				opt.ResolverType = builder.DockerResolver
+			}
+
 			if overlaybd != "" {
 				logrus.Info("building [Overlaybd - Native]  image...")
 				opt.Engine = builder.Overlaybd
@@ -144,6 +153,7 @@ var (
 
 func init() {
 	rootCmd.Flags().SortFlags = false
+	rootCmd.Flags().StringVarP(&ocilayout, "oci-layout", "", "", "use a local oci-layout folder for the image source and conversion output")
 	rootCmd.Flags().StringVarP(&repo, "repository", "r", "", "repository for converting image (required)")
 	rootCmd.Flags().StringVarP(&user, "username", "u", "", "user[:password] Registry user and password")
 	rootCmd.Flags().BoolVarP(&plain, "plain", "", false, "connections using plain HTTP")

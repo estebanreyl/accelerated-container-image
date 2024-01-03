@@ -27,6 +27,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/containerd/accelerated-container-image/cmd/convertor/localregistry"
 	testingresources "github.com/containerd/accelerated-container-image/cmd/convertor/testingresources"
 	"github.com/containerd/accelerated-container-image/pkg/snapshot"
 	"github.com/containerd/containerd/images"
@@ -73,7 +74,7 @@ func Test_fetchManifest(t *testing.T) {
 				desc: v1.Descriptor{
 					MediaType: images.MediaTypeDockerSchema2ManifestList,
 					Digest:    testingresources.Docker_Manifest_List_Digest,
-					Size:      2069,
+					Size:      8633,
 				},
 				ctx: ctx,
 			},
@@ -82,7 +83,7 @@ func Test_fetchManifest(t *testing.T) {
 			wantSubDesc: v1.Descriptor{
 				MediaType: images.MediaTypeDockerSchema2Manifest,
 				Digest:    testingresources.DockerV2_Manifest_Simple_Digest,
-				Size:      525,
+				Size:      testingresources.DockerV2_Manifest_Simple_Size,
 				Platform: &v1.Platform{
 					Architecture: "amd64",
 					OS:           "linux",
@@ -141,11 +142,11 @@ func Test_fetchManifest(t *testing.T) {
 				tt.args.desc.MediaType != v1.MediaTypeImageIndex {
 
 				if tt.args.desc.Digest != contentDigest {
-					t.Errorf("fetchManifest() = %v, want %v", manifest, tt.want)
+					t.Errorf("fetchManifest() = %v, want %v", tt.args.desc.Digest, contentDigest)
 				}
 			} else {
 				if tt.wantSubDesc.Digest != contentDigest {
-					t.Errorf("fetchManifest() = %v, want %v", manifest, tt.want)
+					t.Errorf("fetchManifest() = %v, want %v", tt.wantSubDesc.Digest, contentDigest)
 				}
 			}
 		})
@@ -290,9 +291,10 @@ func Test_uploadBytes(t *testing.T) {
 func Test_uploadBlob(t *testing.T) {
 	ctx := context.Background()
 	// Create a new inmemory registry to push to
-	reg := testingresources.GetTestRegistry(t, ctx, testingresources.RegistryOptions{
+	reg := testingresources.GetTestRegistry(t, ctx, localregistry.RegistryOptions{
 		InmemoryOnly:              true,
 		ManifestPushIgnoresLayers: false,
+		IsTestingRegistry:         true,
 	})
 
 	resolver := testingresources.GetCustomTestResolver(t, ctx, reg)
