@@ -23,6 +23,7 @@ import (
 
 	testingresources "github.com/containerd/accelerated-container-image/cmd/convertor/testingresources"
 	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/images"
 	_ "github.com/containerd/containerd/pkg/testutil" // Handle custom root flag
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -96,6 +97,78 @@ func Test_overlaybd_builder_CheckForConvertedLayer(t *testing.T) {
 		testingresources.Assert(t, errdefs.IsNotFound(err), fmt.Sprintf("CheckForConvertedLayer() returned an unexpected Error: %v", err))
 		entry := base.db.GetLayerEntryForRepo(ctx, e.host, e.repository, fakeChainId)
 		testingresources.Assert(t, entry == nil, "CheckForConvertedLayer() Invalid entry was not cleaned up")
+	})
+	// TODO: Cross Repo Mount Scenario
+}
+
+func Test_overlaybd_builder_CheckForConvertedManifest(t *testing.T) {
+	ctx := context.Background()
+	db := testingresources.NewLocalDB()
+	resolver := testingresources.GetTestResolver(t, ctx)
+	fetcher := testingresources.GetTestFetcherFromResolver(t, ctx, resolver, testingresources.DockerV2_Manifest_Simple_Ref)
+
+	// Unconverted hello world-image
+	inputDesc := v1.Descriptor{
+		MediaType: images.MediaTypeDockerSchema2Manifest,
+		Digest:    testingresources.DockerV2_Manifest_Simple_Digest,
+		Size:      testingresources.DockerV2_Manifest_Simple_Size,
+	}
+
+	// TODO: Add an actual converted image to make this more robust and accurate.
+	// Converted hello world-image
+	outputDesc := v1.Descriptor{
+		MediaType: images.MediaTypeDockerSchema2Manifest,
+		Digest:    testingresources.DockerV2_Manifest_Simple_Digest,
+		Size:      testingresources.DockerV2_Manifest_Simple_Size,
+	}
+
+	base := &builderEngineBase{
+		fetcher:    fetcher,
+		host:       "sample.localstore.io",
+		repository: "hello-world",
+		inputDesc:  inputDesc,
+	}
+
+	e := &overlaybdBuilderEngine{
+		builderEngineBase: base,
+	}
+
+	t.Run("No DB Present", func(t *testing.T) {
+		_, err := e.CheckForConvertedManifest(ctx)
+		testingresources.Assert(t, errdefs.IsNotFound(err), fmt.Sprintf("CheckForConvertedManifest() returned an unexpected Error: %v", err))
+	})
+
+	base.db = db
+
+	// Store a fake converted manifest in the DB
+	err := base.db.CreateManifestEntry(ctx, e.host, e.repository, outputDesc.MediaType, inputDesc.Digest, outputDesc.Digest, outputDesc.Size)
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Run("Entry in DB and in Registry", func(t *testing.T) {
+		desc, err := e.CheckForConvertedManifest(ctx)
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		testingresources.Assert(t, desc.Size == outputDesc.Size, "CheckForConvertedManifest() returned incorrect size")
+		testingresources.Assert(t, desc.Digest == outputDesc.Digest, "CheckForConvertedManifest() returned incorrect digest")
+	})
+
+	base.db = testingresources.NewLocalDB() // Reset DB
+	digestNotInRegistry := digest.FromString("Not in reg")
+	err = base.db.CreateManifestEntry(ctx, e.host, e.repository, outputDesc.MediaType, inputDesc.Digest, digestNotInRegistry, outputDesc.Size)
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Run("Entry in DB but not in registry", func(t *testing.T) {
+		_, err := e.CheckForConvertedManifest(ctx)
+		testingresources.Assert(t, errdefs.IsNotFound(err), fmt.Sprintf("CheckForConvertedManifest() returned an unexpected Error: %v", err))
+		entry := base.db.GetManifestEntryForRepo(ctx, e.host, e.repository, outputDesc.MediaType, inputDesc.Digest)
+		testingresources.Assert(t, entry == nil, "CheckForConvertedManifest() Invalid entry was not cleaned up")
 	})
 	// TODO: Cross Repo Mount Scenario
 }
