@@ -20,11 +20,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path"
 
 	"github.com/containerd/accelerated-container-image/cmd/convertor/database"
 	"github.com/containerd/containerd/archive/compression"
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/remotes"
+	"github.com/containerd/continuity"
 	"github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -75,19 +77,21 @@ type Deduplicateable interface {
 }
 
 type builderEngineBase struct {
-	fetcher    remotes.Fetcher
-	pusher     remotes.Pusher
-	manifest   specs.Manifest
-	config     specs.Image
-	workDir    string
-	oci        bool
-	mkfs       bool
-	db         database.ConversionDatabase
-	host       string
-	repository string
-	inputDesc  v1.Descriptor // original manifest descriptor
-	outputDesc v1.Descriptor // converted manifest descriptor
-
+	fetcher      remotes.Fetcher
+	pusher       remotes.Pusher
+	manifest     specs.Manifest
+	config       specs.Image
+	workDir      string
+	oci          bool
+	mkfs         bool
+	db           database.ConversionDatabase
+	host         string
+	repository   string
+	inputDesc    v1.Descriptor // original manifest descriptor
+	outputDesc   v1.Descriptor // converted manifest descriptor
+	reserve      bool
+	noUpload     bool
+	dumpManifest bool
 }
 
 func (e *builderEngineBase) isGzipLayer(ctx context.Context, idx int) (bool, error) {
@@ -152,10 +156,19 @@ func (e *builderEngineBase) uploadManifestAndConfig(ctx context.Context) error {
 		Digest:    digest.FromBytes(cbuf),
 		Size:      (int64)(len(cbuf)),
 	}
-	if err = uploadBytes(ctx, e.pusher, e.manifest.Config, cbuf); err != nil {
-		return errors.Wrapf(err, "failed to upload config")
+	if !e.noUpload {
+		if err = uploadBytes(ctx, e.pusher, e.manifest.Config, cbuf); err != nil {
+			return errors.Wrapf(err, "failed to upload config")
+		}
+		logrus.Infof("config uploaded")
 	}
-	logrus.Infof("config uploaded")
+	if e.dumpManifest {
+		confPath := path.Join(e.workDir, "config.json")
+		if err := continuity.AtomicWriteFile(confPath, cbuf, 0644); err != nil {
+			return err
+		}
+		logrus.Infof("config dumped")
+	}
 
 	e.manifest.MediaType = e.mediaTypeManifest()
 	cbuf, err = json.Marshal(e.manifest)
@@ -167,12 +180,22 @@ func (e *builderEngineBase) uploadManifestAndConfig(ctx context.Context) error {
 		Digest:    digest.FromBytes(cbuf),
 		Size:      (int64)(len(cbuf)),
 	}
-
-	if err = uploadBytes(ctx, e.pusher, manifestDesc, cbuf); err != nil {
-		return errors.Wrapf(err, "failed to upload manifest")
+	if !e.noUpload {
+		if err = uploadBytes(ctx, e.pusher, manifestDesc, cbuf); err != nil {
+			return errors.Wrapf(err, "failed to upload manifest")
+		}
+		logrus.Infof("manifest uploaded")
+	}
+	if e.dumpManifest {
+		descPath := path.Join(e.workDir, "manifest.json")
+		if err := continuity.AtomicWriteFile(descPath, cbuf, 0644); err != nil {
+			return err
+		}
+		logrus.Infof("manifest dumped")
 	}
 	logrus.Infof("manifest uploaded")
 	e.outputDesc = manifestDesc
+
 	return nil
 }
 
