@@ -63,7 +63,6 @@ func Test_overlaybd_builder_CheckForConvertedLayer(t *testing.T) {
 	})
 
 	base.db = db
-
 	t.Run("No Entry in DB", func(t *testing.T) {
 		_, err := e.CheckForConvertedLayer(ctx, 0)
 		testingresources.Assert(t, errdefs.IsNotFound(err), fmt.Sprintf("CheckForConvertedLayer() returned an unexpected Error: %v", err))
@@ -74,15 +73,38 @@ func Test_overlaybd_builder_CheckForConvertedLayer(t *testing.T) {
 		t.Error(err)
 	}
 
-	t.Run("Entry in DB and in Registry", func(t *testing.T) {
+	t.Run("Layer entry in DB and in Registry", func(t *testing.T) {
 		desc, err := e.CheckForConvertedLayer(ctx, 0)
-
 		if err != nil {
 			t.Error(err)
 		}
 
 		testingresources.Assert(t, desc.Size == targetDesc.Size, "CheckForConvertedLayer() returned improper size layer")
 		testingresources.Assert(t, desc.Digest == targetDesc.Digest, "CheckForConvertedLayer() returned incorrect digest")
+	})
+
+	// cross repo mount (change target repo)
+	base.repository = "hello-world2"
+	newImageRef := "sample.localstore.io/hello-world2:amd64"
+	e.resolver = testingresources.GetTestResolver(t, ctx)
+	e.pusher = testingresources.GetTestPusherFromResolver(t, ctx, e.resolver, newImageRef)
+
+	t.Run("Cross repo layer entry found in DB mount", func(t *testing.T) {
+		desc, err := e.CheckForConvertedLayer(ctx, 0)
+		if err != nil {
+			t.Error(err)
+		}
+
+		testingresources.Assert(t, desc.Size == targetDesc.Size, "CheckForConvertedLayer() returned improper size layer")
+		testingresources.Assert(t, desc.Digest == targetDesc.Digest, "CheckForConvertedLayer() returned incorrect digest")
+
+		// check that the images can be pulled from the mounted repo
+		fetcher := testingresources.GetTestFetcherFromResolver(t, ctx, e.resolver, newImageRef)
+		rc, err := fetcher.Fetch(ctx, desc)
+		if err != nil {
+			t.Error(err)
+		}
+		rc.Close()
 	})
 
 	base.db = testingresources.NewLocalDB() // Reset DB
@@ -98,7 +120,6 @@ func Test_overlaybd_builder_CheckForConvertedLayer(t *testing.T) {
 		entry := base.db.GetLayerEntryForRepo(ctx, e.host, e.repository, fakeChainId)
 		testingresources.Assert(t, entry == nil, "CheckForConvertedLayer() Invalid entry was not cleaned up")
 	})
-	// TODO: Cross Repo Mount Scenario
 }
 
 func Test_overlaybd_builder_CheckForConvertedManifest(t *testing.T) {
@@ -127,6 +148,7 @@ func Test_overlaybd_builder_CheckForConvertedManifest(t *testing.T) {
 		host:       "sample.localstore.io",
 		repository: "hello-world",
 		inputDesc:  inputDesc,
+		resolver:   resolver,
 	}
 
 	e := &overlaybdBuilderEngine{
@@ -157,6 +179,35 @@ func Test_overlaybd_builder_CheckForConvertedManifest(t *testing.T) {
 		testingresources.Assert(t, desc.Digest == outputDesc.Digest, "CheckForConvertedManifest() returned incorrect digest")
 	})
 
+	// cross repo mount (change target repo)
+	base.repository = "hello-world2"
+	newImageRef := "sample.localstore.io/hello-world2:amd64"
+	e.resolver = testingresources.GetTestResolver(t, ctx)
+	e.pusher = testingresources.GetTestPusherFromResolver(t, ctx, e.resolver, newImageRef)
+
+	t.Run("Cross Repo Entry found in DB mount", func(t *testing.T) {
+		_, err := e.CheckForConvertedManifest(ctx)
+		testingresources.Assert(t, err == nil, fmt.Sprintf("CheckForConvertedManifest() returned an unexpected Error: %v", err))
+		// check that the images can be pulled from the mounted repo
+		fetcher := testingresources.GetTestFetcherFromResolver(t, ctx, e.resolver, newImageRef)
+		_, desc, err := e.resolver.Resolve(ctx, newImageRef)
+		if err != nil {
+			t.Error(err)
+		}
+		manifest, config, err := fetchManifestAndConfig(ctx, fetcher, desc)
+		if err != nil {
+			t.Error(err)
+		}
+		if manifest == nil || config == nil {
+			t.Error("Could not pull mounted manifest or config")
+		}
+		rc, err := fetcher.Fetch(ctx, manifest.Layers[0])
+		if err != nil {
+			t.Error(err)
+		}
+		rc.Close()
+	})
+
 	base.db = testingresources.NewLocalDB() // Reset DB
 	digestNotInRegistry := digest.FromString("Not in reg")
 	err = base.db.CreateManifestEntry(ctx, e.host, e.repository, outputDesc.MediaType, inputDesc.Digest, digestNotInRegistry, outputDesc.Size)
@@ -170,7 +221,6 @@ func Test_overlaybd_builder_CheckForConvertedManifest(t *testing.T) {
 		entry := base.db.GetManifestEntryForRepo(ctx, e.host, e.repository, outputDesc.MediaType, inputDesc.Digest)
 		testingresources.Assert(t, entry == nil, "CheckForConvertedManifest() Invalid entry was not cleaned up")
 	})
-	// TODO: Cross Repo Mount Scenario
 }
 
 func Test_overlaybd_builder_StoreConvertedLayerDetails(t *testing.T) {

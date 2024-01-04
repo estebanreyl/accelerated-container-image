@@ -29,7 +29,6 @@ import (
 	"github.com/containerd/continuity"
 	"github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
-	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -58,6 +57,8 @@ type builderEngine interface {
 	Deduplicateable
 }
 
+// Deduplicateable provides a number of functions to avoid duplicating work when converting images
+// It is used by the builderEngine to avoid re-converting layers and manifests
 type Deduplicateable interface {
 	// deduplication functions
 	// finds already converted layer in db and validates presence in registry
@@ -66,7 +67,7 @@ type Deduplicateable interface {
 	// downloads the already converted layer
 	DownloadConvertedLayer(ctx context.Context, idx int, desc specs.Descriptor) error
 
-	// store chainID -> converted layer mapping for deduplication
+	// store chainID -> converted layer mapping for layer deduplication
 	StoreConvertedLayerDetails(ctx context.Context, idx int) error
 
 	// store manifest digest -> converted manifest to avoid re-conversion
@@ -77,6 +78,7 @@ type Deduplicateable interface {
 }
 
 type builderEngineBase struct {
+	resolver     remotes.Resolver
 	fetcher      remotes.Fetcher
 	pusher       remotes.Pusher
 	manifest     specs.Manifest
@@ -87,8 +89,8 @@ type builderEngineBase struct {
 	db           database.ConversionDatabase
 	host         string
 	repository   string
-	inputDesc    v1.Descriptor // original manifest descriptor
-	outputDesc   v1.Descriptor // converted manifest descriptor
+	inputDesc    specs.Descriptor // original manifest descriptor
+	outputDesc   specs.Descriptor // converted manifest descriptor
 	reserve      bool
 	noUpload     bool
 	dumpManifest bool
@@ -184,6 +186,7 @@ func (e *builderEngineBase) uploadManifestAndConfig(ctx context.Context) error {
 		if err = uploadBytes(ctx, e.pusher, manifestDesc, cbuf); err != nil {
 			return errors.Wrapf(err, "failed to upload manifest")
 		}
+		e.outputDesc = manifestDesc
 		logrus.Infof("manifest uploaded")
 	}
 	if e.dumpManifest {
@@ -193,9 +196,6 @@ func (e *builderEngineBase) uploadManifestAndConfig(ctx context.Context) error {
 		}
 		logrus.Infof("manifest dumped")
 	}
-	logrus.Infof("manifest uploaded")
-	e.outputDesc = manifestDesc
-
 	return nil
 }
 
@@ -217,6 +217,7 @@ func getBuilderEngineBase(ctx context.Context, resolver remotes.Resolver, ref, t
 		return nil, errors.Wrap(err, "failed to fetch manifest and config")
 	}
 	return &builderEngineBase{
+		resolver:  resolver,
 		fetcher:   fetcher,
 		pusher:    pusher,
 		manifest:  *manifest,
