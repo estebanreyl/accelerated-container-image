@@ -135,12 +135,11 @@ func Test_overlaybd_builder_CheckForConvertedManifest(t *testing.T) {
 		Size:      testingresources.DockerV2_Manifest_Simple_Size,
 	}
 
-	// TODO: Add an actual converted image to make this more robust and accurate.
 	// Converted hello world-image
 	outputDesc := v1.Descriptor{
-		MediaType: images.MediaTypeDockerSchema2Manifest,
-		Digest:    testingresources.DockerV2_Manifest_Simple_Digest,
-		Size:      testingresources.DockerV2_Manifest_Simple_Size,
+		MediaType: v1.MediaTypeImageManifest,
+		Digest:    testingresources.DockerV2_Manifest_Simple_Converted_Digest,
+		Size:      testingresources.DockerV2_Manifest_Simple_Converted_Size,
 	}
 
 	base := &builderEngineBase{
@@ -149,6 +148,7 @@ func Test_overlaybd_builder_CheckForConvertedManifest(t *testing.T) {
 		repository: "hello-world",
 		inputDesc:  inputDesc,
 		resolver:   resolver,
+		oci:        true,
 	}
 
 	e := &overlaybdBuilderEngine{
@@ -170,7 +170,6 @@ func Test_overlaybd_builder_CheckForConvertedManifest(t *testing.T) {
 
 	t.Run("Entry in DB and in Registry", func(t *testing.T) {
 		desc, err := e.CheckForConvertedManifest(ctx)
-
 		if err != nil {
 			t.Error(err)
 		}

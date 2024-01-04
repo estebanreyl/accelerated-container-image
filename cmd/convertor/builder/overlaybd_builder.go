@@ -20,12 +20,12 @@ import (
 	"archive/tar"
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path"
 
-	"github.com/containerd/accelerated-container-image/cmd/convertor/testingresources"
 	"github.com/containerd/accelerated-container-image/pkg/label"
 	"github.com/containerd/accelerated-container-image/pkg/snapshot"
 	"github.com/containerd/accelerated-container-image/pkg/utils"
@@ -330,7 +330,7 @@ func (e *overlaybdBuilderEngine) mountImage(ctx context.Context, manifest specs.
 	}
 
 	// Push Manifest
-	cbuf, err := testingresources.ConsistentManifestMarshal(&manifest)
+	cbuf, err := json.Marshal(manifest)
 	if err != nil {
 		return err
 	}
