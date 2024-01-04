@@ -28,6 +28,7 @@ import (
 
 	"github.com/containerd/accelerated-container-image/pkg/label"
 	"github.com/containerd/accelerated-container-image/pkg/metrics"
+	"github.com/sirupsen/logrus"
 
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/log"
@@ -66,6 +67,11 @@ const (
 	RwDev = "dev"       // use overlaybd directly
 )
 
+type Registry struct {
+	Host     string `json:"host"`
+	Insecure bool   `json:"insecure"`
+}
+
 type BootConfig struct {
 	Address           string                 `json:"address"`
 	Root              string                 `json:"root"`
@@ -75,6 +81,7 @@ type BootConfig struct {
 	AutoRemoveDev     bool                   `json:"autoRemoveDev"`
 	ExporterConfig    metrics.ExporterConfig `json:"exporterConfig"`
 	WritableLayerType string                 `json:"writableLayerType"` // append or sparse
+	MirrorRegistry    []Registry             `json:"mirrorRegistry"`
 }
 
 func DefaultBootConfig() *BootConfig {
@@ -88,6 +95,7 @@ func DefaultBootConfig() *BootConfig {
 			UriPrefix: "/metrics",
 			Port:      9863,
 		},
+		MirrorRegistry:    nil,
 		WritableLayerType: "append",
 	}
 }
@@ -153,6 +161,7 @@ type snapshotter struct {
 	indexOff          bool
 	autoRemoveDev     bool
 	writableLayerType string
+	mirrorRegistry    []Registry
 
 	locker *locker.Locker
 }
@@ -190,6 +199,10 @@ func NewSnapshotter(bootConfig *BootConfig, opts ...Opt) (snapshots.Snapshotter,
 		indexOff = true
 	}
 
+	if bootConfig.MirrorRegistry != nil {
+		logrus.Infof("mirror Registry: %+v", bootConfig.MirrorRegistry)
+	}
+
 	return &snapshotter{
 		root:              bootConfig.Root,
 		rwMode:            bootConfig.RwMode,
@@ -199,13 +212,14 @@ func NewSnapshotter(bootConfig *BootConfig, opts ...Opt) (snapshots.Snapshotter,
 		metacopyOption:    metacopyOption,
 		autoRemoveDev:     bootConfig.AutoRemoveDev,
 		writableLayerType: bootConfig.WritableLayerType,
+		mirrorRegistry:    bootConfig.MirrorRegistry,
 		locker:            locker.New(),
 	}, nil
 }
 
 // Stat returns the info for an active or committed snapshot by the key.
 func (o *snapshotter) Stat(ctx context.Context, key string) (_ snapshots.Info, retErr error) {
-	log.G(ctx).Debugf("Stat (key: %s)", key)
+	log.G(ctx).Infof("Stat (key: %s)", key)
 	start := time.Now()
 	defer func() {
 		if retErr != nil {
@@ -232,7 +246,7 @@ func (o *snapshotter) Stat(ctx context.Context, key string) (_ snapshots.Info, r
 //
 // TODO(fuweid): should not touch the interface-like or internal label!
 func (o *snapshotter) Update(ctx context.Context, info snapshots.Info, fieldpaths ...string) (_ snapshots.Info, retErr error) {
-	log.G(ctx).Debugf("Update (fieldpaths: %s)", fieldpaths)
+	log.G(ctx).Infof("Update (fieldpaths: %s)", fieldpaths)
 	start := time.Now()
 	defer func() {
 		if retErr != nil {
@@ -260,7 +274,7 @@ func (o *snapshotter) Update(ctx context.Context, info snapshots.Info, fieldpath
 
 // Usage returns the resources taken by the snapshot identified by key.
 func (o *snapshotter) Usage(ctx context.Context, key string) (_ snapshots.Usage, retErr error) {
-	log.G(ctx).Debugf("Usage (key: %s)", key)
+	log.G(ctx).Infof("Usage (key: %s)", key)
 	start := time.Now()
 	defer func() {
 		if retErr != nil {
@@ -280,13 +294,18 @@ func (o *snapshotter) Usage(ctx context.Context, key string) (_ snapshots.Usage,
 		return snapshots.Usage{}, err
 	}
 
-	if info.Kind == snapshots.KindActive {
-		upperPath := o.upperPath(id)
-		du, err := fs.DiskUsage(ctx, upperPath)
-		if err != nil {
-			return snapshots.Usage{}, err
+	stype, err := o.identifySnapshotStorageType(ctx, id, info)
+	if err != nil {
+		return snapshots.Usage{}, err
+	}
+
+	switch info.Kind {
+	case snapshots.KindActive:
+		return o.diskUsageWithBlock(ctx, id, stype)
+	case snapshots.KindCommitted:
+		if stype == storageTypeRemoteBlock || stype == storageTypeLocalBlock {
+			return o.diskUsageWithBlock(ctx, id, stype)
 		}
-		usage = snapshots.Usage(du)
 	}
 	return usage, nil
 }
@@ -497,6 +516,9 @@ func (o *snapshotter) createMountPoint(ctx context.Context, kind snapshots.Kind,
 					}
 				} else if needRecordTrace && recordTracePath != "" {
 					err = o.updateSpec(parentID, false, recordTracePath)
+					if writeType != RoDir {
+						o.updateSpec(id, false, recordTracePath)
+					}
 				} else {
 					// For the compatibility of images which have no accel layer
 					err = o.updateSpec(parentID, false, "")
@@ -568,7 +590,7 @@ func (o *snapshotter) createMountPoint(ctx context.Context, kind snapshots.Kind,
 
 // Prepare creates an active snapshot identified by key descending from the provided parent.
 func (o *snapshotter) Prepare(ctx context.Context, key, parent string, opts ...snapshots.Opt) (_ []mount.Mount, retErr error) {
-	log.G(ctx).Debugf("Prepare (key: %s, parent: %s)", key, parent)
+	log.G(ctx).Infof("Prepare (key: %s, parent: %s)", key, parent)
 	start := time.Now()
 	defer func() {
 		if retErr != nil {
@@ -581,7 +603,7 @@ func (o *snapshotter) Prepare(ctx context.Context, key, parent string, opts ...s
 
 // View returns a readonly view on parent snapshotter.
 func (o *snapshotter) View(ctx context.Context, key, parent string, opts ...snapshots.Opt) (_ []mount.Mount, retErr error) {
-	log.G(ctx).Debugf("View (key: %s, parent: %s)", key, parent)
+	log.G(ctx).Infof("View (key: %s, parent: %s)", key, parent)
 	defer log.G(ctx).Debugf("return View (key: %s, parent: %s)", key, parent)
 	start := time.Now()
 	defer func() {
@@ -598,6 +620,8 @@ func (o *snapshotter) View(ctx context.Context, key, parent string, opts ...snap
 //
 // This can be used to recover mounts after calling View or Prepare.
 func (o *snapshotter) Mounts(ctx context.Context, key string) (_ []mount.Mount, retErr error) {
+	log.G(ctx).Infof("Mounts (key: %s)", key)
+
 	start := time.Now()
 	defer func() {
 		if retErr != nil {
@@ -662,7 +686,7 @@ func (o *snapshotter) Mounts(ctx context.Context, key string) (_ []mount.Mount, 
 
 // Commit
 func (o *snapshotter) Commit(ctx context.Context, name, key string, opts ...snapshots.Opt) (retErr error) {
-	log.G(ctx).Debugf("Commit (key: %s, name: %s)", key, name)
+	log.G(ctx).Infof("Commit (key: %s, name: %s)", key, name)
 	start := time.Now()
 	defer func() {
 		if retErr != nil {
@@ -696,6 +720,8 @@ func (o *snapshotter) Commit(ctx context.Context, name, key string, opts ...snap
 		// TODO(fuweid): how to rollback?
 		if oinfo.Labels[label.AccelerationLayer] == "yes" {
 			log.G(ctx).Info("Commit accel-layer requires no writable_data")
+		} else if _, err := o.loadBackingStoreConfig(id); err != nil {
+			log.G(ctx).Info("not an overlaybd writable layer")
 		} else {
 			if err := o.unmountAndDetachBlockDevice(ctx, id, key); err != nil {
 				return errors.Wrapf(err, "failed to destroy target device for snapshot %s", key)
@@ -731,7 +757,8 @@ func (o *snapshotter) Commit(ctx context.Context, name, key string, opts ...snap
 		}
 
 		info.Labels[label.LocalOverlayBDPath] = o.overlaybdSealedFilePath(id)
-		info, err = storage.UpdateInfo(ctx, info, fmt.Sprintf("labels.%s", label.LocalOverlayBDPath))
+		delete(info.Labels, label.SupportReadWriteMode)
+		info, err = storage.UpdateInfo(ctx, info)
 		if err != nil {
 			return err
 		}
@@ -768,7 +795,7 @@ func (o *snapshotter) commit(ctx context.Context, name, key string, opts ...snap
 // Remove abandons the snapshot identified by key. The snapshot will
 // immediately become unavailable and unrecoverable.
 func (o *snapshotter) Remove(ctx context.Context, key string) (err error) {
-	log.G(ctx).Debugf("Remove (key: %s)", key)
+	log.G(ctx).Infof("Remove (key: %s)", key)
 	start := time.Now()
 	defer func() {
 		if err != nil {
@@ -846,7 +873,7 @@ func (o *snapshotter) Remove(ctx context.Context, key string) (err error) {
 
 // Walk the snapshots.
 func (o *snapshotter) Walk(ctx context.Context, fn snapshots.WalkFunc, fs ...string) (err error) {
-	log.G(ctx).Debugf("Walk (fs: %s)", fs)
+	log.G(ctx).Infof("Walk (fs: %s)", fs)
 	start := time.Now()
 	defer func() {
 		if err != nil {

@@ -40,6 +40,7 @@ import (
 	"github.com/containerd/containerd/snapshots"
 	"github.com/containerd/containerd/snapshots/storage"
 	"github.com/containerd/continuity"
+	"github.com/containerd/continuity/fs"
 	"github.com/moby/sys/mountinfo"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
@@ -179,34 +180,24 @@ func (o *snapshotter) parseAndCheckMounted(ctx context.Context, r io.Reader, dir
 
 // unmountAndDetachBlockDevice
 func (o *snapshotter) unmountAndDetachBlockDevice(ctx context.Context, snID string, snKey string) (err error) {
-
-	var info snapshots.Info
-	if snKey != "" {
-		_, info, _, err = storage.GetInfo(ctx, snKey)
-		if err != nil {
-			return errors.Wrapf(err, "can't get snapshot info.")
-		}
-	}
-	writeType := o.getWritableType(ctx, snID, info)
-	overlaybd, err := os.ReadFile(o.overlaybdBackstoreMarkFile(snID))
+	devName, err := os.ReadFile(o.overlaybdBackstoreMarkFile(snID))
 	if err != nil {
 		log.G(ctx).Errorf("read device name failed: %s, err: %v", o.overlaybdBackstoreMarkFile(snID), err)
 	}
-	if writeType != RwDev {
-		mountPoint := o.overlaybdMountpoint(snID)
-		log.G(ctx).Debugf("check overlaybd mountpoint is in use: %s", mountPoint)
-		busy, err := o.checkOverlaybdInUse(ctx, mountPoint)
-		if err != nil {
-			return err
-		}
-		if busy {
-			log.G(ctx).Infof("device still in use.")
-			return nil
-		}
-		log.G(ctx).Infof("umount device, mountpoint: %s", mountPoint)
-		if err := mount.UnmountAll(mountPoint, 0); err != nil {
-			return errors.Wrapf(err, "failed to umount %s", mountPoint)
-		}
+
+	mountPoint := o.overlaybdMountpoint(snID)
+	log.G(ctx).Debugf("check overlaybd mountpoint is in use: %s", mountPoint)
+	busy, err := o.checkOverlaybdInUse(ctx, mountPoint)
+	if err != nil {
+		return err
+	}
+	if busy {
+		log.G(ctx).Infof("device still in use.")
+		return nil
+	}
+	log.G(ctx).Infof("umount device, mountpoint: %s", mountPoint)
+	if err := mount.UnmountAll(mountPoint, 0); err != nil {
+		return errors.Wrapf(err, "failed to umount %s", mountPoint)
 	}
 
 	loopDevID := o.overlaybdLoopbackDeviceID(snID)
@@ -242,7 +233,7 @@ func (o *snapshotter) unmountAndDetachBlockDevice(ctx context.Context, snID stri
 	if err != nil {
 		return errors.Wrapf(err, "failed to remove target dir %s", targetPath)
 	}
-	log.G(ctx).Infof("destroy overlaybd device success(sn: %s): %s", snID, overlaybd)
+	log.G(ctx).Infof("destroy overlaybd device success(sn: %s): %s", snID, devName)
 	return nil
 }
 
@@ -561,7 +552,11 @@ func (o *snapshotter) constructOverlayBDSpec(ctx context.Context, key string, wr
 			return errors.Errorf("unexpect storage %v of snapshot %v during construct overlaybd spec(writable=%v, parent=%s)", stype, key, writable, info.Parent)
 		}
 		log.G(ctx).Infof("prepare writable layer. (sn: %s)", id)
-		if err := o.prepareWritableOverlaybd(ctx, id); err != nil {
+		vsizeGB := 0
+		if info.Parent == "" {
+			vsizeGB = 64
+		}
+		if err := o.prepareWritableOverlaybd(ctx, id, vsizeGB); err != nil {
 			return err
 		}
 
@@ -633,7 +628,13 @@ func (o *snapshotter) constructImageBlobURL(ref string) (string, error) {
 	if host == "docker.io" {
 		host = "registry-1.docker.io"
 	}
-	return "https://" + path.Join(host, "v2", repo) + "/blobs", nil
+	scheme := "https://"
+	for _, reg := range o.mirrorRegistry {
+		if host == reg.Host && reg.Insecure {
+			scheme = "http://"
+		}
+	}
+	return scheme + path.Join(host, "v2", repo) + "/blobs", nil
 }
 
 // atomicWriteOverlaybdTargetConfig
@@ -651,9 +652,8 @@ func (o *snapshotter) atomicWriteOverlaybdTargetConfig(snID string, configJSON *
 }
 
 // prepareWritableOverlaybd
-func (o *snapshotter) prepareWritableOverlaybd(ctx context.Context, snID string) error {
-	// TODO(fuweid): 256GB can be configurable?
-	args := []string{"64"}
+func (o *snapshotter) prepareWritableOverlaybd(ctx context.Context, snID string, vsizeGB int) error {
+	args := []string{fmt.Sprintf("%d", vsizeGB)}
 	if o.writableLayerType == "sparse" {
 		args = append(args, "-s")
 	}
@@ -702,4 +702,21 @@ func lookup(dir string) error {
 
 func isGzipLayerType(mediaType string) bool {
 	return mediaType == specs.MediaTypeImageLayerGzip || mediaType == images.MediaTypeDockerSchema2LayerGzip
+}
+
+func (o *snapshotter) diskUsageWithBlock(ctx context.Context, id string, stype storageType) (snapshots.Usage, error) {
+	usage := snapshots.Usage{}
+	du, err := fs.DiskUsage(ctx, o.upperPath(id))
+	if err != nil {
+		return snapshots.Usage{}, err
+	}
+	usage = snapshots.Usage(du)
+	if stype == storageTypeRemoteBlock || stype == storageTypeLocalBlock {
+		du, err := utils.DiskUsageWithoutMountpoint(ctx, o.blockPath(id))
+		if err != nil {
+			return snapshots.Usage{}, err
+		}
+		usage.Add(snapshots.Usage(du))
+	}
+	return usage, nil
 }

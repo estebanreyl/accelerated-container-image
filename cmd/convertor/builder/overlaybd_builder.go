@@ -99,7 +99,12 @@ func (e *overlaybdBuilderEngine) BuildLayer(ctx context.Context, idx int) error 
 		alreadyConverted = true
 	}
 	if !alreadyConverted {
-		if err := e.create(ctx, layerDir, e.mkfs && (idx == 0)); err != nil {
+		mkfs := e.mkfs && (idx == 0)
+		vsizeGB := 0
+		if idx == 0 {
+			vsizeGB = 64
+		}
+		if err := e.create(ctx, layerDir, mkfs, vsizeGB); err != nil {
 			return err
 		}
 		e.overlaybdConfig.Upper = snapshot.OverlayBDBSConfigUpper{
@@ -115,9 +120,11 @@ func (e *overlaybdBuilderEngine) BuildLayer(ctx context.Context, idx int) error 
 		if err := e.commit(ctx, layerDir, idx); err != nil {
 			return err
 		}
-		os.Remove(path.Join(layerDir, "layer.tar"))
-		os.Remove(path.Join(layerDir, "writable_data"))
-		os.Remove(path.Join(layerDir, "writable_index"))
+		if !e.reserve {
+			os.Remove(path.Join(layerDir, "layer.tar"))
+			os.Remove(path.Join(layerDir, "writable_data"))
+			os.Remove(path.Join(layerDir, "writable_index"))
+		}
 	}
 	e.overlaybdConfig.Lowers = append(e.overlaybdConfig.Lowers, snapshot.OverlayBDBSConfigLower{
 		File: path.Join(layerDir, commitFile),
@@ -137,8 +144,10 @@ func (e *overlaybdBuilderEngine) UploadLayer(ctx context.Context, idx int) error
 		label.OverlayBDBlobDigest: desc.Digest.String(),
 		label.OverlayBDBlobSize:   fmt.Sprintf("%d", desc.Size),
 	}
-	if err := uploadBlob(ctx, e.pusher, path.Join(layerDir, commitFile), desc); err != nil {
-		return errors.Wrapf(err, "failed to upload layer %d", idx)
+	if !e.noUpload {
+		if err := uploadBlob(ctx, e.pusher, path.Join(layerDir, commitFile), desc); err != nil {
+			return errors.Wrapf(err, "failed to upload layer %d", idx)
+		}
 	}
 	e.overlaybdLayers[idx].desc = desc
 	return nil
@@ -234,7 +243,9 @@ func (e *overlaybdBuilderEngine) DownloadConvertedLayer(ctx context.Context, idx
 }
 
 func (e *overlaybdBuilderEngine) Cleanup() {
-	os.RemoveAll(e.workDir)
+	if !e.reserve {
+		os.RemoveAll(e.workDir)
+	}
 }
 
 func (e *overlaybdBuilderEngine) uploadBaseLayer(ctx context.Context) (specs.Descriptor, error) {
@@ -282,11 +293,12 @@ func (e *overlaybdBuilderEngine) uploadBaseLayer(ctx context.Context) (specs.Des
 			label.OverlayBDBlobSize:   fmt.Sprintf("%d", countWriter.c),
 		},
 	}
-	if err = uploadBlob(ctx, e.pusher, tarFile, baseDesc); err != nil {
-		return specs.Descriptor{}, errors.Wrapf(err, "failed to upload baselayer")
+	if !e.noUpload {
+		if err = uploadBlob(ctx, e.pusher, tarFile, baseDesc); err != nil {
+			return specs.Descriptor{}, errors.Wrapf(err, "failed to upload baselayer")
+		}
+		logrus.Infof("baselayer uploaded")
 	}
-	logrus.Infof("baselayer uploaded")
-
 	return baseDesc, nil
 }
 
@@ -294,8 +306,8 @@ func (e *overlaybdBuilderEngine) getLayerDir(idx int) string {
 	return path.Join(e.workDir, fmt.Sprintf("%04d_", idx)+e.manifest.Layers[idx].Digest.String())
 }
 
-func (e *overlaybdBuilderEngine) create(ctx context.Context, dir string, mkfs bool) error {
-	opts := []string{"-s", "64"}
+func (e *overlaybdBuilderEngine) create(ctx context.Context, dir string, mkfs bool, vsizeGB int) error {
+	opts := []string{"-s", fmt.Sprintf("%d", vsizeGB)}
 	if mkfs {
 		opts = append(opts, "--mkfs")
 		logrus.Infof("mkfs for baselayer")

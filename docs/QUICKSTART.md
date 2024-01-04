@@ -67,7 +67,17 @@ The config file is `/etc/overlaybd-snapshotter/config.json`. Please create the f
         "enable": false,
         "uriPrefix": "/metrics",
         "port": 9863
-    }
+    },
+    "mirrorRegistry": [
+        {
+            "host": "localhost:5000",
+            "insecure": true
+        },
+        {
+            "host": "registry-1.docker.io",
+            "insecure": false
+        }
+    ]
 }
 ```
 | Field | Description |
@@ -75,12 +85,15 @@ The config file is `/etc/overlaybd-snapshotter/config.json`. Please create the f
 | `root` | the root directory to store snapshots |
 | `address` | the socket address used to connect withcontainerd. |
 | `verbose` | log level, `info` or `debug` |
-| `rwMode` | rootfs mode about wether to use native writable layer. See [Native Support for Writable](docs/WRITABLE.md) for detail. |
+| `rwMode` | rootfs mode about wether to use native writable layer. See [Native Support for Writable](./WRITABLE.md) for detail. |
 | `logReportCaller` | enable/disable the calling method |
 | `autoRemoveDev` | enable/disable auto clean-up overlaybd device after container removed |
 | `exporterConfig.enable` | whether or not create a server to show Prometheus metrics |
 | `exporterConfig.uriPrefix` | URI prefix for export metrics, default `/metrics` |
 | `exporterConfig.port` | port for http server to show metrics, default `9863` |
+| `mirrorRegistry` | an arrary of mirror registries |
+| `mirrorRegistry.host` | host address, eg. `registry-1.docker.io`` |
+| `mirrorRegistry.insecure` | `true` or `false` |
 
 
 #### Start service
@@ -96,6 +109,8 @@ sudo systemctl start overlaybd-snapshotter
 ### overlaybd-tcmu
 
 Users can compile the latest code to install or download the [release](https://github.com/containerd/overlaybd/releases).
+
+There is no strong dependency between the overlaybd-snapshotter and overlaybd-tcmu versions. However, overlaybd-snapshotter v1.0.1+ requires overlaybd-tcmu v1.0.4+ because there have been adjustments made to the parameters for image conversion.
 
 #### Compile from source
 
