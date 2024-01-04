@@ -86,7 +86,7 @@ type DockerManifest struct {
 func ConsistentManifestMarshal(manifest *v1.Manifest) ([]byte, error) {
 	// If OCI Manifest
 	if manifest.MediaType == v1.MediaTypeImageManifest {
-		return json.MarshalIndent(manifest, "", "   ")
+		return json.MarshalIndent(manifest, "", "  ")
 	}
 
 	if manifest.MediaType != images.MediaTypeDockerSchema2Manifest {

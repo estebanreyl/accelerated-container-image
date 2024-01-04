@@ -59,7 +59,7 @@ func Test_fetchManifest(t *testing.T) {
 			args: args{
 				fetcher: testingresources.GetTestFetcherFromResolver(t, ctx, resolver, testingresources.DockerV2_Manifest_Simple_Ref),
 				desc: v1.Descriptor{
-					MediaType: images.MediaTypeDockerSchema2Manifest,
+					MediaType: v1.MediaTypeImageManifest,
 					Digest:    testingresources.DockerV2_Manifest_Simple_Digest,
 					Size:      testingresources.DockerV2_Manifest_Simple_Size,
 				},
@@ -72,7 +72,7 @@ func Test_fetchManifest(t *testing.T) {
 			args: args{
 				fetcher: testingresources.GetTestFetcherFromResolver(t, ctx, resolver, testingresources.Docker_Manifest_List_Ref),
 				desc: v1.Descriptor{
-					MediaType: images.MediaTypeDockerSchema2ManifestList,
+					MediaType: v1.MediaTypeImageIndex,
 					Digest:    testingresources.Docker_Manifest_List_Digest,
 					Size:      8633,
 				},
@@ -81,7 +81,7 @@ func Test_fetchManifest(t *testing.T) {
 			// The manifest list is expected to select the first manifest that can be converted
 			// in the list, for this image that is the very first one.
 			wantSubDesc: v1.Descriptor{
-				MediaType: images.MediaTypeDockerSchema2Manifest,
+				MediaType: v1.MediaTypeImageManifest,
 				Digest:    testingresources.DockerV2_Manifest_Simple_Digest,
 				Size:      testingresources.DockerV2_Manifest_Simple_Size,
 				Platform: &v1.Platform{
@@ -137,10 +137,8 @@ func Test_fetchManifest(t *testing.T) {
 			}
 
 			contentDigest := digest.FromBytes(content)
-
 			if tt.args.desc.MediaType != images.MediaTypeDockerSchema2ManifestList &&
 				tt.args.desc.MediaType != v1.MediaTypeImageIndex {
-
 				if tt.args.desc.Digest != contentDigest {
 					t.Errorf("fetchManifest() = %v, want %v", tt.args.desc.Digest, contentDigest)
 				}
