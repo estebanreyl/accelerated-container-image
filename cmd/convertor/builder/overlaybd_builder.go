@@ -249,7 +249,6 @@ func (e *overlaybdBuilderEngine) CheckForConvertedManifest(ctx context.Context) 
 			Size:      entry.DataSize,
 		}
 		rc, err := e.fetcher.Fetch(ctx, convertedDesc)
-
 		if err == nil {
 			rc.Close()
 			logrus.Infof("manifest %s found in remote with resulting digest %s", e.inputDesc.Digest, convertedDesc.Digest)

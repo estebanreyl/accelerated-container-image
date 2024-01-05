@@ -133,7 +133,8 @@ func (b *overlaybdBuilder) Build(ctx context.Context) error {
 	downloaded := make([]chan error, b.layers)
 	converted := make([]chan error, b.layers)
 
-	// check if manifest conversion result is already present in registry, if so, we can avoid conversion
+	// check if manifest conversion result is already present in registry, if so, we can avoid conversion.
+	// when errors are encountered fallback to regular conversion
 	if convertedDesc, err := b.engine.CheckForConvertedManifest(ctx); err == nil && convertedDesc.Digest != "" {
 		logrus.Infof("Image found already converted in registry with digest %s", convertedDesc.Digest)
 		return nil
