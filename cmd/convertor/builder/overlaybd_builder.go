@@ -291,7 +291,7 @@ func (e *overlaybdBuilderEngine) CheckForConvertedManifest(ctx context.Context) 
 		if err := e.db.CreateManifestEntry(ctx, e.host, e.repository, e.mediaTypeManifest(), e.inputDesc.Digest, convertedDesc.Digest, entry.DataSize); err != nil {
 			continue // try a different repo if available
 		}
-		logrus.Infof("manifest %s mount from %s was successful", e.inputDesc.Digest, entry.Repository)
+		logrus.Infof("manifest %s mount from %s was successful", convertedDesc.Digest, entry.Repository)
 		return convertedDesc, nil
 	}
 

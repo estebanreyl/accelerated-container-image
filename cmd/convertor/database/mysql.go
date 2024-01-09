@@ -87,14 +87,14 @@ func (m *sqldb) CreateManifestEntry(ctx context.Context, host, repository, media
 func (m *sqldb) GetManifestEntryForRepo(ctx context.Context, host, repository, mediaType string, original digest.Digest) *ManifestEntry {
 	var entry ManifestEntry
 	row := m.db.QueryRowContext(ctx, "select host, repo, src_digest, out_digest, data_size, mediatype from overlaybd_manifests where host=? and repo=? and src_digest=? and mediatype=?", host, repository, original, mediaType)
-	if err := row.Scan(&entry.Host, &entry.Repository, &entry.OriginalDigest, &entry.ConvertedDigest, &entry.DataSize); err != nil {
+	if err := row.Scan(&entry.Host, &entry.Repository, &entry.OriginalDigest, &entry.ConvertedDigest, &entry.DataSize, &entry.MediaType); err != nil {
 		return nil
 	}
 	return &entry
 }
 
 func (m *sqldb) GetCrossRepoManifestEntries(ctx context.Context, host, mediaType string, original digest.Digest) []*ManifestEntry {
-	rows, err := m.db.QueryContext(ctx, "select host, repo, src_digest, out_digest, data_size, mediatype from overlaybd_layers where host=? and chain_id=? and mediatype=?", host, original)
+	rows, err := m.db.QueryContext(ctx, "select host, repo, src_digest, out_digest, data_size, mediatype from overlaybd_manifests where host=? and src_digest=? and mediatype=?", host, original, mediaType)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil
@@ -105,7 +105,7 @@ func (m *sqldb) GetCrossRepoManifestEntries(ctx context.Context, host, mediaType
 	var entries []*ManifestEntry
 	for rows.Next() {
 		var entry ManifestEntry
-		err = rows.Scan(&entry.Host, &entry.Repository, &entry.OriginalDigest, &entry.ConvertedDigest, &entry.DataSize)
+		err = rows.Scan(&entry.Host, &entry.Repository, &entry.OriginalDigest, &entry.ConvertedDigest, &entry.DataSize, &entry.MediaType)
 		if err != nil {
 			continue
 		}
