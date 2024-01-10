@@ -8,4 +8,4 @@ apt update
 apt install mysql-server
 service mysql start
 cat ./mysql.conf | mysql
-echo "CREATE USER '$mysqldbuser'@'localhost' IDENTIFIED BY '$mysqldbpassword'; GRANT ALL PRIVILEGES ON conversioncache.* TO '$mysqldbuser'@'localhost'; FLUSH PRIVILEGES;" | sudo mysql
+echo "CREATE USER '$mysqldbuser'@'localhost' IDENTIFIED BY '$mysqldbpassword'; GRANT ALL PRIVILEGES ON conversioncache.* TO '$mysqldbuser'@'localhost'; FLUSH PRIVILEGES;" | mysql
